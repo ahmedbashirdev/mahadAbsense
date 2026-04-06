@@ -15,10 +15,6 @@ export default function LoginPage() {
       const result = await loginAction(formData);
       if (result?.error) {
         setError(result.error);
-      } else {
-        // Redirection must happen fully through window location so middleware resets
-        // or Next router refresh. Let's redirect dynamically.
-        window.location.href = "/";
       }
     });
   };

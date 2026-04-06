@@ -42,7 +42,6 @@ export async function loginAction(formData: FormData) {
   // Create session
   await loginSession(user);
   
-  // Return early, standard Next.js redirect doesn't work well directly in a returned try/catch if it has middleware, 
-  // but let's just trigger redirect here directly. 
-  // Note: redirect internally throws an error to escape execution so we don't return an object when successful.
+  // Redirect after successful login
+  redirect("/");
 }
