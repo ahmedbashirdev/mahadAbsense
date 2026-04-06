@@ -1,0 +1,77 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String        @id @default(cuid())
+  name         String
+  username     String        @unique
+  password     String
+  role         String        @default("STAFF") // "ADMIN" or "STAFF"
+  activityLogs ActivityLog[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  action    String
+  details   String?
+  createdAt DateTime @default(now())
+}
+
+model AcademicYear {
+  id        String    @id @default(cuid())
+  name      String    // e.g., "السنة التمهيدية"
+  order     Int       // Sorting order
+  subjects  Subject[]
+  students  Student[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Subject {
+  id           String       @id @default(cuid())
+  name         String
+  termType     String       // "ONE_TERM" or "TWO_TERMS"
+  yearId       String
+  academicYear AcademicYear @relation(fields: [yearId], references: [id])
+  attendances  Attendance[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+model Student {
+  id           String       @id @default(cuid())
+  name         String
+  identifier   String?      // e.g., Student ID Code
+  yearId       String
+  academicYear AcademicYear @relation(fields: [yearId], references: [id])
+  attendances  Attendance[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+model Attendance {
+  id        String   @id @default(cuid())
+  date      DateTime // Date without time component
+  status    String   // "PRESENT", "ABSENT", "EXCUSED"
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id])
+  subjectId String
+  subject   Subject  @relation(fields: [subjectId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([date, studentId, subjectId])
+}
