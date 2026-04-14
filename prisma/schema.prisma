@@ -24,7 +24,7 @@ model User {
 model ActivityLog {
   id        String   @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   action    String
   details   String?
   createdAt DateTime @default(now())
@@ -45,7 +45,7 @@ model Subject {
   name         String
   termType     String       // "ONE_TERM" or "TWO_TERMS"
   yearId       String
-  academicYear AcademicYear @relation(fields: [yearId], references: [id])
+  academicYear AcademicYear @relation(fields: [yearId], references: [id], onDelete: Cascade)
   attendances  Attendance[]
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
@@ -56,7 +56,7 @@ model Student {
   name         String
   identifier   String?      // e.g., Student ID Code
   yearId       String
-  academicYear AcademicYear @relation(fields: [yearId], references: [id])
+  academicYear AcademicYear @relation(fields: [yearId], references: [id], onDelete: Cascade)
   attendances  Attendance[]
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
@@ -67,9 +67,9 @@ model Attendance {
   date      DateTime // Date without time component
   status    String   // "PRESENT", "ABSENT", "EXCUSED"
   studentId String
-  student   Student  @relation(fields: [studentId], references: [id])
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   subjectId String
-  subject   Subject  @relation(fields: [subjectId], references: [id])
+  subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
