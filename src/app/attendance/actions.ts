@@ -46,10 +46,14 @@ export async function saveAttendance(subjectId: string, date: string, attendance
   });
 
   await prisma.$transaction(operations);
-  
+
   const subject = await prisma.subject.findUnique({ where: { id: subjectId } });
   await logActivity("تسجيل الغياب", `تم تحديث كشف غياب مادة (${subject?.name || subjectId}) لتاريخ ${date}`);
-  
+
+  // NOTE: We intentionally do NOT revalidate /attendance here. Revalidating would
+  // cause the server component to re-render, pass a new initialYears reference,
+  // and re-trigger the client effect -> showing the loading state and flashing
+  // the table in and out on every save. The client keeps its own state in sync
+  // via getAttendanceRecords on dependency change.
   revalidatePath("/");
-  revalidatePath("/attendance");
 }

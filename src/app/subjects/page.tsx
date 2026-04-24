@@ -80,7 +80,7 @@ export default async function SubjectsPage({ searchParams }: { searchParams: Pro
         </div>
       </header>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 1fr) 2fr', gap: '2rem' }}>
+      <div className="two-col-grid">
         <section className="card animate-fade-in" style={{ height: 'fit-content' }}>
           <h3 style={{ marginBottom: '1.5rem', fontWeight: 700 }}>
              {subjectToEdit ? "تعديل المادة" : "إضافة مادة جديدة"}
