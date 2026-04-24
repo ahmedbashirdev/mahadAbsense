@@ -561,6 +561,87 @@ tr:hover td {
   background-color: rgba(59, 130, 246, 0.08);
 }
 
+/* ===== Students filter / group styles ===== */
+.students-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.students-search {
+  max-width: 420px;
+}
+
+.students-tabs {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding-bottom: 0.25rem;
+}
+
+.students-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.9rem;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+  white-space: nowrap;
+}
+
+.students-tab:hover {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.students-tab.active {
+  background-color: rgba(59, 130, 246, 0.1);
+  color: var(--accent-primary);
+  border-color: rgba(59, 130, 246, 0.4);
+}
+
+.students-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  padding: 0 0.4rem;
+  height: 20px;
+  background-color: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.students-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6rem 0.9rem;
+  margin-bottom: 0.5rem;
+  border: 1px solid;
+  border-radius: var(--border-radius-sm);
+  font-weight: 800;
+  font-size: 0.95rem;
+  background-color: var(--bg-tertiary);
+}
+
+.students-group-count {
+  font-size: 0.8rem;
+  font-weight: 700;
+  opacity: 0.85;
+}
+
 /* ===== Two-column grids used on settings/list pages — responsive ===== */
 .two-col-grid {
   display: grid;

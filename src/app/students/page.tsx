@@ -1,9 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "@/lib/logger";
-import { SubmitWithConfirm } from "@/components/SubmitWithConfirm";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import StudentsList from "./StudentsList";
 
 export const dynamic = 'force-dynamic';
 
@@ -138,41 +138,7 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
 
         <section className="card animate-fade-in" style={{ animationDelay: '0.2s' }}>
           <h3 style={{ marginBottom: '1.5rem', fontWeight: 700 }}>سجل الطلاب</h3>
-          {students.length > 0 ? (
-            <div style={{ overflowX: 'auto' }}>
-              <table>
-                <thead>
-                  <tr>
-                    <th>الاسم</th>
-                    <th>الكود</th>
-                    <th>السنة الدراسية</th>
-                    <th>إجراءات</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {students.map(student => (
-                    <tr key={student.id}>
-                      <td style={{ fontWeight: 600 }}>{student.name}</td>
-                      <td style={{ color: 'var(--text-secondary)' }}>{student.identifier || '-'}</td>
-                      <td>{student.academicYear.name}</td>
-                      <td>
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          <Link href={`/students?edit=${student.id}`} className="btn" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)', padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>
-                            تعديل
-                          </Link>
-                          <SubmitWithConfirm action={deleteStudent} id={student.id} confirmMessage={`هل أنت متأكد من حذف ${student.name}؟`} />
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '2rem 0' }}>
-              لم يتم إضافة أي طلاب بعد.
-            </p>
-          )}
+          <StudentsList students={students} years={years} deleteAction={deleteStudent} />
         </section>
       </div>
     </>
