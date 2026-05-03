@@ -1,18 +1,23 @@
 "use server"
 import { prisma } from "@/lib/prisma";
+import { getStudentAccess } from "@/lib/access";
 
 export async function getYearReport(yearId: string) {
-  // 1. Get all students for this year
+  const access = await getStudentAccess();
+  if (!access) {
+    return { students: [], lectures: [], attendanceRecords: [] };
+  }
+
+  // 1. Get all students for this year (filtered by gender access)
   const students = await prisma.student.findMany({
-    where: { yearId },
+    where: { yearId, gender: { in: access.allowedGenders } },
     orderBy: { name: 'asc' }
   });
 
   // 2. Get all attendance records for these students
-  // This helps us deduce which actual lectures happened
   const attendanceRecords = await prisma.attendance.findMany({
     where: {
-      student: { yearId }
+      student: { yearId, gender: { in: access.allowedGenders } }
     },
     include: {
       subject: true
@@ -35,7 +40,6 @@ export async function getYearReport(yearId: string) {
     }
   });
 
-  // Sort lectures by date
   const lectures = Array.from(lecturesMap.values()).sort((a, b) => a.date.getTime() - b.date.getTime());
 
   return {

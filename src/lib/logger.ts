@@ -1,10 +1,11 @@
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { getStaffSession } from "@/lib/auth";
 
 export async function logActivity(action: string, details?: string) {
   try {
-    const session = await getSession();
-    if (!session || !session.userId) return;
+    // Activity log is for staff actions only — student-facing actions don't log here.
+    const session = await getStaffSession();
+    if (!session) return;
 
     await prisma.activityLog.create({
       data: {

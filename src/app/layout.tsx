@@ -1,7 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import Link from 'next/link';
+import Link from "next/link";
 import { getSession } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import LogoutButton from "./LogoutButton";
 import AppShell from "@/components/AppShell";
 
@@ -23,54 +24,64 @@ export default async function RootLayout({
 }>) {
   const session = await getSession();
 
-  const sidebarContent = session ? (
-    <>
-      <h2 className="sidebar-brand">المعهد العلمي</h2>
+  let sidebarContent: React.ReactNode = null;
 
-      <nav className="sidebar-nav">
-        <Link href="/" className="sidebar-link">
-          📊 الرئيسية
-        </Link>
-        <Link href="/attendance" className="sidebar-link">
-          📝 تسجيل الغياب
-        </Link>
-        <Link href="/reports" className="sidebar-link">
-          📈 تقارير الدفعات
-        </Link>
+  if (session?.type === "STAFF") {
+    sidebarContent = (
+      <>
+        <h2 className="sidebar-brand">المعهد العلمي</h2>
 
-        <hr className="sidebar-sep" />
+        <nav className="sidebar-nav">
+          <Link href="/" className="sidebar-link">📊 الرئيسية</Link>
+          <Link href="/attendance" className="sidebar-link">📝 تسجيل الغياب</Link>
+          <Link href="/attendance/session" className="sidebar-link">📱 جلسة QR للحضور</Link>
+          <Link href="/reports" className="sidebar-link">📈 تقارير الدفعات</Link>
 
-        <Link href="/years" className="sidebar-link">
-          📆 السنوات الدراسية
-        </Link>
-        <Link href="/subjects" className="sidebar-link">
-          📚 المواد الدراسية
-        </Link>
-        <Link href="/students" className="sidebar-link">
-          🧑‍🎓 الطلاب
-        </Link>
+          <hr className="sidebar-sep" />
 
-        {session.role === 'ADMIN' && (
-          <>
-            <hr className="sidebar-sep" />
-            <Link href="/users" className="sidebar-link">
-              👥 إدارة المستخدمين
-            </Link>
-            <Link href="/activity" className="sidebar-link">
-              ⏱️ سجل النشاطات
-            </Link>
-          </>
-        )}
+          <Link href="/years" className="sidebar-link">📆 السنوات الدراسية</Link>
+          <Link href="/subjects" className="sidebar-link">📚 المواد الدراسية</Link>
+          <Link href="/students" className="sidebar-link">🧑‍🎓 الطلاب</Link>
 
-        <hr className="sidebar-sep" />
-        <Link href="/settings" className="sidebar-link">
-          ⚙️ إعدادات حسابي
-        </Link>
-      </nav>
+          {session.role === "ADMIN" && (
+            <>
+              <hr className="sidebar-sep" />
+              <Link href="/users" className="sidebar-link">👥 إدارة المستخدمين</Link>
+              <Link href="/activity" className="sidebar-link">⏱️ سجل النشاطات</Link>
+            </>
+          )}
 
-      <LogoutButton />
-    </>
-  ) : null;
+          <hr className="sidebar-sep" />
+          <Link href="/settings" className="sidebar-link">⚙️ إعدادات حسابي</Link>
+        </nav>
+
+        <LogoutButton />
+      </>
+    );
+  } else if (session?.type === "STUDENT") {
+    // Pull the student's name for the sidebar header.
+    const student = await prisma.student.findUnique({
+      where: { id: session.studentId },
+      select: { name: true },
+    });
+    sidebarContent = (
+      <>
+        <h2 className="sidebar-brand">حسابي</h2>
+        <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginBottom: "1rem" }}>
+          {student?.name || session.username}
+        </p>
+
+        <nav className="sidebar-nav">
+          <Link href="/me" className="sidebar-link">📊 لوحة بياناتي</Link>
+          <Link href="/me/checkin" className="sidebar-link">📷 تسجيل الحضور</Link>
+          <hr className="sidebar-sep" />
+          <Link href="/me/settings" className="sidebar-link">⚙️ تغيير كلمة المرور</Link>
+        </nav>
+
+        <LogoutButton />
+      </>
+    );
+  }
 
   return (
     <html lang="ar" dir="rtl">

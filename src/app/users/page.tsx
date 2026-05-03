@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { getStaffSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
@@ -11,13 +11,14 @@ export const dynamic = 'force-dynamic';
 
 async function addUser(formData: FormData) {
   "use server"
-  const session = await getSession();
+  const session = await getStaffSession();
   if (session?.role !== 'ADMIN') return;
 
   const name = formData.get("name") as string;
   const username = formData.get("username") as string;
   const password = formData.get("password") as string;
   const role = formData.get("role") as string;
+  const canViewFemale = formData.get("canViewFemale") === "on";
 
   if (!name || !username || !password) return;
 
@@ -25,10 +26,13 @@ async function addUser(formData: FormData) {
 
   try {
     await prisma.user.create({
-      data: { name, username, password: hashedPassword, role }
+      data: { name, username, password: hashedPassword, role, canViewFemale }
     });
-    await logActivity("إضافة حساب", `إنشاء حساب جديد (${username}) بصلاحية ${role}`);
-  } catch (e) {
+    await logActivity(
+      "إضافة حساب",
+      `إنشاء حساب جديد (${username}) بصلاحية ${role}${canViewFemale ? " — مع الوصول لبيانات النساء" : ""}`
+    );
+  } catch {
     // Usually unique constraint failed
   }
   revalidatePath("/users");
@@ -36,7 +40,7 @@ async function addUser(formData: FormData) {
 
 async function updateUser(formData: FormData) {
   "use server"
-  const session = await getSession();
+  const session = await getStaffSession();
   if (session?.role !== 'ADMIN') return;
 
   const id = formData.get("id") as string;
@@ -44,10 +48,17 @@ async function updateUser(formData: FormData) {
   const username = formData.get("username") as string;
   const password = formData.get("password") as string;
   const role = formData.get("role") as string;
+  const canViewFemale = formData.get("canViewFemale") === "on";
 
   if (!id || !name || !username) return;
 
-  const updateData: any = { name, username, role };
+  const updateData: {
+    name: string;
+    username: string;
+    role: string;
+    canViewFemale: boolean;
+    password?: string;
+  } = { name, username, role, canViewFemale };
   if (password) {
     updateData.password = await bcrypt.hash(password, 10);
   }
@@ -57,8 +68,8 @@ async function updateUser(formData: FormData) {
       where: { id },
       data: updateData
     });
-    await logActivity("تعديل حساب", `تعديل حساب (${username})`);
-  } catch (e) {
+    await logActivity("تعديل حساب", `تعديل حساب (${username})${canViewFemale ? " — لديه وصول لبيانات النساء" : ""}`);
+  } catch {
     // Usually unique constraint failed
   }
   revalidatePath("/users");
@@ -67,12 +78,12 @@ async function updateUser(formData: FormData) {
 
 async function deleteUser(formData: FormData) {
   "use server"
-  const session = await getSession();
+  const session = await getStaffSession();
   if (session?.role !== 'ADMIN') return;
 
   const id = formData.get("id") as string;
   if (!id || id === session.userId) return; // Prevent deleting oneself
-  
+
   const userToDelete = await prisma.user.findUnique({ where: { id } });
   if (userToDelete) {
     await prisma.user.delete({ where: { id } });
@@ -82,16 +93,25 @@ async function deleteUser(formData: FormData) {
 }
 
 export default async function UsersPage({ searchParams }: { searchParams: Promise<{ edit?: string }> }) {
-  const session = await getSession();
+  const session = await getStaffSession();
   if (session?.role !== 'ADMIN') {
     redirect("/"); // Block non-admins
   }
 
   const sp = await searchParams;
   const editId = sp.edit;
-  let userToEdit: any = null;
+  let userToEdit: {
+    id: string;
+    name: string;
+    username: string;
+    role: string;
+    canViewFemale: boolean;
+  } | null = null;
   if (editId) {
-    userToEdit = await prisma.user.findUnique({ where: { id: editId } });
+    userToEdit = await prisma.user.findUnique({
+      where: { id: editId },
+      select: { id: true, name: true, username: true, role: true, canViewFemale: true },
+    });
   }
 
   const users = await prisma.user.findMany({
@@ -116,24 +136,31 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
             <form action={updateUser} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <input type="hidden" name="id" value={userToEdit.id} />
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>اسم الموظف</label>
+                <label className="field-label">اسم الموظف</label>
                 <input type="text" name="name" className="input-field" defaultValue={userToEdit.name} required />
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>اسم الدخول (Username)</label>
+                <label className="field-label">اسم الدخول (Username)</label>
                 <input type="text" name="username" className="input-field" defaultValue={userToEdit.username} required />
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>كلمة المرور الجديدة (اختياري)</label>
+                <label className="field-label">كلمة المرور الجديدة (اختياري)</label>
                 <input type="password" name="password" className="input-field" placeholder="اتركه فارغاً لعدم التغيير" />
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>الصلاحية</label>
+                <label className="field-label">الصلاحية</label>
                 <select name="role" className="input-field" defaultValue={userToEdit.role} required>
                   <option value="STAFF">مسؤول غياب (STAFF)</option>
                   <option value="ADMIN">مدير نظام (ADMIN)</option>
                 </select>
               </div>
+              <label className="permission-toggle">
+                <input type="checkbox" name="canViewFemale" defaultChecked={userToEdit.canViewFemale} />
+                <span>
+                  <strong>👧 الوصول لبيانات النساء</strong>
+                  <small>يسمح للمستخدم برؤية وتسجيل الغياب لطالبات الإناث</small>
+                </span>
+              </label>
               <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
                 <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>حفظ التعديلات</button>
                 <Link href="/users" className="btn btn-danger" style={{ flex: 1, textAlign: 'center', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>إلغاء</Link>
@@ -142,24 +169,31 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
           ) : (
             <form action={addUser} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>اسم الموظف</label>
+                <label className="field-label">اسم الموظف</label>
                 <input type="text" name="name" className="input-field" required />
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>اسم الدخول (Username)</label>
+                <label className="field-label">اسم الدخول (Username)</label>
                 <input type="text" name="username" className="input-field" required />
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>كلمة المرور الابتدائية</label>
+                <label className="field-label">كلمة المرور الابتدائية</label>
                 <input type="password" name="password" className="input-field" required />
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>الصلاحية</label>
+                <label className="field-label">الصلاحية</label>
                 <select name="role" className="input-field" required>
                   <option value="STAFF">مسؤول غياب (STAFF)</option>
                   <option value="ADMIN">مدير نظام (ADMIN)</option>
                 </select>
               </div>
+              <label className="permission-toggle">
+                <input type="checkbox" name="canViewFemale" />
+                <span>
+                  <strong>👧 الوصول لبيانات النساء</strong>
+                  <small>يسمح للمستخدم برؤية وتسجيل الغياب لطالبات الإناث</small>
+                </span>
+              </label>
               <button type="submit" className="btn btn-primary" style={{ marginTop: '0.5rem' }}>
                 إنشاء الحساب
               </button>
@@ -176,6 +210,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
                   <th>الاسم</th>
                   <th>اسم الدخول</th>
                   <th>الدور</th>
+                  <th>الصلاحيات</th>
                   <th>إجراءات</th>
                 </tr>
               </thead>
@@ -188,6 +223,19 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
                        <span className="status-badge" style={{ backgroundColor: u.role === 'ADMIN' ? 'rgba(59, 130, 246, 0.1)' : 'var(--bg-tertiary)', color: u.role === 'ADMIN' ? 'var(--accent-primary)' : 'var(--text-secondary)' }}>
                            {u.role === 'ADMIN' ? 'مدير' : 'موظف'}
                        </span>
+                    </td>
+                    <td>
+                      {u.role === 'ADMIN' ? (
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>كامل</span>
+                      ) : u.canViewFemale ? (
+                        <span className="status-badge" style={{
+                          backgroundColor: 'rgba(236, 72, 153, 0.12)',
+                          color: '#ec4899',
+                          border: '1px solid rgba(236, 72, 153, 0.4)',
+                        }}>👧 وصول للنساء</span>
+                      ) : (
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>ذكور فقط</span>
+                      )}
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>

@@ -1,14 +1,23 @@
 import { prisma } from "@/lib/prisma";
+import { redirect } from "next/navigation";
+import { getStudentAccess } from "@/lib/access";
 
 export const dynamic = 'force-dynamic';
 
 export default async function Home() {
-  const studentsCount = await prisma.student.count();
+  const access = await getStudentAccess();
+  if (!access) redirect("/login");
+
+  // Counts respect the current user's gender access scope.
+  const studentsCount = await prisma.student.count({
+    where: { gender: { in: access.allowedGenders } },
+  });
   const subjectsCount = await prisma.subject.count();
   const yearsCount = await prisma.academicYear.count();
-  
-  // Get recent attendance to show quick stats
+
+  // Recent attendance — also gender-scoped.
   const recentAttendance = await prisma.attendance.findMany({
+    where: { student: { gender: { in: access.allowedGenders } } },
     take: 5,
     orderBy: { createdAt: 'desc' },
     include: {
@@ -30,6 +39,11 @@ export default async function Home() {
         <div className="card animate-fade-in" style={{ animationDelay: '0.1s' }}>
           <h3 style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', marginBottom: '0.5rem' }}>عدد الطلاب المسجلين</h3>
           <p style={{ fontSize: '2.5rem', fontWeight: 700, color: 'var(--accent-primary)' }}>{studentsCount}</p>
+          {!access.canViewFemale && (
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginTop: '0.25rem' }}>
+              (الذكور فقط)
+            </p>
+          )}
         </div>
         <div className="card animate-fade-in" style={{ animationDelay: '0.2s' }}>
           <h3 style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', marginBottom: '0.5rem' }}>عدد المواد الدراسية</h3>

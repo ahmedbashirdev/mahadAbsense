@@ -1,15 +1,35 @@
 "use server"
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
-import { loginSession } from "@/lib/auth";
+import { loginSession, loginStudentSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 
 export async function loginAction(formData: FormData) {
   const username = formData.get("username") as string;
   const password = formData.get("password") as string;
+  const accountType = (formData.get("accountType") as string) || "STAFF"; // "STAFF" | "STUDENT"
+  const next = (formData.get("next") as string) || "";
 
   if (!username || !password) {
     return { error: "يرجى تعبئة كلا الحقلين" };
+  }
+
+  if (accountType === "STUDENT") {
+    const student = await prisma.student.findUnique({
+      where: { username },
+      select: { id: true, username: true, password: true, isActive: true },
+    });
+    if (!student || !student.password || !student.username) {
+      return { error: "بيانات الدخول غير صحيحة" };
+    }
+    const ok = await bcrypt.compare(password, student.password);
+    if (!ok) return { error: "بيانات الدخول غير صحيحة" };
+    if (!student.isActive) {
+      return { error: "هذا الحساب موقوف. تواصل مع إدارة المعهد." };
+    }
+
+    await loginStudentSession({ id: student.id, username: student.username });
+    redirect(next && next.startsWith("/") ? next : "/me");
   }
 
   // Auto-seed admin user if user table is completely empty
@@ -39,9 +59,7 @@ export async function loginAction(formData: FormData) {
     return { error: "بيانات الدخول غير صحيحة" };
   }
 
-  // Create session
   await loginSession(user);
-  
-  // Redirect after successful login
-  redirect("/");
+
+  redirect(next && next.startsWith("/") ? next : "/");
 }

@@ -11,14 +11,17 @@ datasource db {
 }
 
 model User {
-  id           String        @id @default(cuid())
-  name         String
-  username     String        @unique
-  password     String
-  role         String        @default("STAFF") // "ADMIN" or "STAFF"
-  activityLogs ActivityLog[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  id            String        @id @default(cuid())
+  name          String
+  username      String        @unique
+  password      String
+  role          String        @default("STAFF") // "ADMIN" or "STAFF"
+  // When true, this user is allowed to view/manage female students and their
+  // attendance. ADMINs always have access. Toggleable from the users page.
+  canViewFemale Boolean       @default(false)
+  activityLogs  ActivityLog[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 }
 
 model ActivityLog {
@@ -55,11 +58,27 @@ model Student {
   id           String       @id @default(cuid())
   name         String
   identifier   String?      // e.g., Student ID Code
+  gender       String       @default("MALE") // "MALE" or "FEMALE"
+  // Self-service login credentials. Either set by the student during self-
+  // signup or by an admin from the students page.
+  username     String?      @unique
+  password     String?      // bcrypt-hashed
+  // Admins can disable a student's account without deleting it. Disabled
+  // accounts cannot log in.
+  isActive     Boolean      @default(true)
   yearId       String
   academicYear AcademicYear @relation(fields: [yearId], references: [id], onDelete: Cascade)
   attendances  Attendance[]
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
+}
+
+// Generic key/value settings for system-wide configuration
+// (e.g., per-subject absence warning threshold).
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
 }
 
 model Attendance {

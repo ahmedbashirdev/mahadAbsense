@@ -561,6 +561,192 @@ tr:hover td {
   background-color: rgba(59, 130, 246, 0.08);
 }
 
+/* ===== Login tabs (student vs staff) ===== */
+.login-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  background-color: var(--bg-tertiary);
+  padding: 0.25rem;
+  border-radius: var(--border-radius-sm);
+}
+
+.login-tab {
+  flex: 1;
+  padding: 0.55rem 0.75rem;
+  border: none;
+  background-color: transparent;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border-radius: calc(var(--border-radius-sm) - 2px);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.login-tab.active {
+  background-color: var(--bg-secondary);
+  color: var(--accent-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ===== QR session display ===== */
+.qr-session-grid {
+  display: grid;
+  grid-template-columns: minmax(360px, 1fr) 1fr;
+  gap: 1.5rem;
+}
+
+.qr-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.qr-canvas {
+  background-color: white;
+  border-radius: var(--border-radius-md);
+  padding: 1rem;
+  border: 1px solid var(--border-color);
+  width: 100%;
+  max-width: 360px;
+}
+
+.qr-canvas svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.qr-meta {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.qr-timer {
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
+.qr-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 220px;
+  color: var(--text-secondary);
+  background-color: var(--bg-tertiary);
+  border-radius: var(--border-radius-md);
+  border: 2px dashed var(--border-color);
+}
+
+@media (max-width: 900px) {
+  .qr-session-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ===== Check-in scanner overlay ===== */
+.qr-frame {
+  position: absolute;
+  top: 12%;
+  left: 12%;
+  right: 12%;
+  bottom: 12%;
+  border: 3px solid rgba(255, 255, 255, 0.8);
+  border-radius: var(--border-radius-md);
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+/* ===== Gender selector (used in student form) ===== */
+.gender-toggle {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.gender-option {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  background-color: var(--bg-secondary);
+  cursor: pointer;
+  transition: var(--transition);
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.gender-option input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.gender-option:has(input[type="radio"]:checked) {
+  background-color: rgba(59, 130, 246, 0.08);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+.gender-option:has(input[value="FEMALE"]:checked) {
+  background-color: rgba(236, 72, 153, 0.1);
+  border-color: #ec4899;
+  color: #ec4899;
+}
+
+/* Fallback for browsers without :has() — hidden inline class set on initial render */
+.gender-option.checked {
+  background-color: rgba(59, 130, 246, 0.08);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+/* ===== Permission toggle (checkbox row used on user form) ===== */
+.permission-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  background-color: var(--bg-tertiary);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.permission-toggle:has(input:checked) {
+  background-color: rgba(236, 72, 153, 0.08);
+  border-color: rgba(236, 72, 153, 0.5);
+}
+
+.permission-toggle input[type="checkbox"] {
+  margin-top: 0.2rem;
+  width: 18px;
+  height: 18px;
+  accent-color: #ec4899;
+  cursor: pointer;
+}
+
+.permission-toggle span {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.permission-toggle small {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
 /* ===== Students filter / group styles ===== */
 .students-toolbar {
   display: flex;

@@ -1,11 +1,11 @@
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { getStaffSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 
 export const dynamic = 'force-dynamic';
 
 export default async function ActivityPage() {
-  const session = await getSession();
+  const session = await getStaffSession();
   if (session?.role !== 'ADMIN') {
     redirect("/");
   }

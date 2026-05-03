@@ -7,6 +7,9 @@ type Student = {
   id: string;
   name: string;
   identifier: string | null;
+  gender: string; // "MALE" | "FEMALE"
+  username: string | null;
+  isActive: boolean;
   yearId: string;
   academicYear: { id: string; name: string; order: number };
 };
@@ -17,14 +20,16 @@ type Props = {
   students: Student[];
   years: Year[];
   deleteAction: (formData: FormData) => Promise<void>;
+  canViewFemale: boolean;
 };
 
-export default function StudentsList({ students, years, deleteAction }: Props) {
+type GenderFilter = "ALL" | "MALE" | "FEMALE";
+
+export default function StudentsList({ students, years, deleteAction, canViewFemale }: Props) {
   const [selectedYearId, setSelectedYearId] = useState<string>(""); // "" = all
+  const [genderFilter, setGenderFilter] = useState<GenderFilter>("ALL");
   const [query, setQuery] = useState("");
 
-  // Palette keyed by year.order so each year has its own color (same idea
-  // as the subject picker). RTL-safe neutral palette.
   const palette = useMemo(
     () => ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316"],
     []
@@ -34,26 +39,27 @@ export default function StudentsList({ students, years, deleteAction }: Props) {
     return palette[(idx >= 0 ? idx : 0) % palette.length];
   };
 
-  // Apply text search first, then partition by year.
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return students.filter((s) => {
       if (selectedYearId && s.yearId !== selectedYearId) return false;
+      if (genderFilter !== "ALL" && s.gender !== genderFilter) return false;
       if (!q) return true;
       return (
         s.name.toLowerCase().includes(q) ||
         (s.identifier || "").toLowerCase().includes(q)
       );
     });
-  }, [students, selectedYearId, query]);
+  }, [students, selectedYearId, genderFilter, query]);
 
-  // Counts per year (respecting search query) — useful in the pill badges.
+  // Counts per year (respecting current text + gender filters)
   const counts = useMemo(() => {
     const q = query.trim().toLowerCase();
     const map = new Map<string, number>();
     map.set("", 0);
     years.forEach((y) => map.set(y.id, 0));
     students.forEach((s) => {
+      if (genderFilter !== "ALL" && s.gender !== genderFilter) return;
       if (q) {
         const matches =
           s.name.toLowerCase().includes(q) ||
@@ -64,9 +70,27 @@ export default function StudentsList({ students, years, deleteAction }: Props) {
       map.set(s.yearId, (map.get(s.yearId) || 0) + 1);
     });
     return map;
-  }, [students, years, query]);
+  }, [students, years, query, genderFilter]);
 
-  // Group the filtered list by year (used when "all" is selected).
+  // Counts per gender (respecting text + year filters)
+  const genderCounts = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    let male = 0;
+    let female = 0;
+    students.forEach((s) => {
+      if (selectedYearId && s.yearId !== selectedYearId) return;
+      if (q) {
+        const matches =
+          s.name.toLowerCase().includes(q) ||
+          (s.identifier || "").toLowerCase().includes(q);
+        if (!matches) return;
+      }
+      if (s.gender === "MALE") male++;
+      else if (s.gender === "FEMALE") female++;
+    });
+    return { male, female, all: male + female };
+  }, [students, selectedYearId, query]);
+
   const grouped = useMemo(() => {
     const byYear = new Map<string, Student[]>();
     filtered.forEach((s) => {
@@ -74,11 +98,26 @@ export default function StudentsList({ students, years, deleteAction }: Props) {
       arr.push(s);
       byYear.set(s.yearId, arr);
     });
-    // Preserve `years` order (by `order`).
     return years
       .map((y) => ({ year: y, items: byYear.get(y.id) || [] }))
       .filter((g) => g.items.length > 0);
   }, [filtered, years]);
+
+  const renderGenderBadge = (gender: string) => {
+    const isFemale = gender === "FEMALE";
+    return (
+      <span
+        className="status-badge"
+        style={{
+          backgroundColor: isFemale ? "rgba(236, 72, 153, 0.12)" : "rgba(59, 130, 246, 0.12)",
+          color: isFemale ? "#ec4899" : "#3b82f6",
+          border: `1px solid ${isFemale ? "rgba(236, 72, 153, 0.4)" : "rgba(59, 130, 246, 0.4)"}`,
+        }}
+      >
+        {isFemale ? "👧 أنثى" : "👦 ذكر"}
+      </span>
+    );
+  };
 
   const renderTable = (rows: Student[], showYearColumn: boolean) => (
     <div style={{ overflowX: "auto" }}>
@@ -87,6 +126,7 @@ export default function StudentsList({ students, years, deleteAction }: Props) {
           <tr>
             <th>الاسم</th>
             <th>الكود</th>
+            <th>النوع</th>
             {showYearColumn && <th>السنة الدراسية</th>}
             <th>إجراءات</th>
           </tr>
@@ -94,8 +134,36 @@ export default function StudentsList({ students, years, deleteAction }: Props) {
         <tbody>
           {rows.map((student) => (
             <tr key={student.id}>
-              <td style={{ fontWeight: 600 }}>{student.name}</td>
+              <td style={{ fontWeight: 600 }}>
+                {student.name}
+                {student.username && !student.isActive && (
+                  <span
+                    className="status-badge"
+                    style={{
+                      marginInlineStart: "0.5rem",
+                      backgroundColor: "rgba(239, 68, 68, 0.12)",
+                      color: "var(--danger)",
+                      fontSize: "0.7rem",
+                    }}
+                  >
+                    ⏸ موقوف
+                  </span>
+                )}
+                {student.username && student.isActive && (
+                  <span
+                    style={{
+                      marginInlineStart: "0.5rem",
+                      fontSize: "0.7rem",
+                      color: "var(--text-tertiary)",
+                    }}
+                    dir="ltr"
+                  >
+                    @{student.username}
+                  </span>
+                )}
+              </td>
               <td style={{ color: "var(--text-secondary)" }}>{student.identifier || "-"}</td>
+              <td>{renderGenderBadge(student.gender)}</td>
               {showYearColumn && (
                 <td>
                   <span
@@ -148,13 +216,53 @@ export default function StudentsList({ students, years, deleteAction }: Props) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
+
+        {canViewFemale && (
+          <div className="students-tabs">
+            <button
+              type="button"
+              onClick={() => setGenderFilter("ALL")}
+              className={`students-tab ${genderFilter === "ALL" ? "active" : ""}`}
+            >
+              الكل
+              <span className="students-tab-count">{genderCounts.all}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setGenderFilter("MALE")}
+              className={`students-tab ${genderFilter === "MALE" ? "active" : ""}`}
+              style={
+                genderFilter === "MALE"
+                  ? { backgroundColor: "rgba(59, 130, 246, 0.12)", color: "#3b82f6", borderColor: "rgba(59, 130, 246, 0.4)" }
+                  : undefined
+              }
+            >
+              👦 الذكور
+              <span className="students-tab-count">{genderCounts.male}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setGenderFilter("FEMALE")}
+              className={`students-tab ${genderFilter === "FEMALE" ? "active" : ""}`}
+              style={
+                genderFilter === "FEMALE"
+                  ? { backgroundColor: "rgba(236, 72, 153, 0.12)", color: "#ec4899", borderColor: "rgba(236, 72, 153, 0.4)" }
+                  : undefined
+              }
+            >
+              👧 الإناث
+              <span className="students-tab-count">{genderCounts.female}</span>
+            </button>
+          </div>
+        )}
+
         <div className="students-tabs">
           <button
             type="button"
             onClick={() => setSelectedYearId("")}
             className={`students-tab ${selectedYearId === "" ? "active" : ""}`}
           >
-            الكل
+            كل السنوات
             <span className="students-tab-count">{counts.get("") || 0}</span>
           </button>
           {years.map((y) => {
@@ -168,11 +276,7 @@ export default function StudentsList({ students, years, deleteAction }: Props) {
                 className={`students-tab ${active ? "active" : ""}`}
                 style={
                   active
-                    ? {
-                        backgroundColor: `${color}1a`,
-                        color,
-                        borderColor: `${color}80`,
-                      }
+                    ? { backgroundColor: `${color}1a`, color, borderColor: `${color}80` }
                     : undefined
                 }
               >
@@ -201,7 +305,6 @@ export default function StudentsList({ students, years, deleteAction }: Props) {
         </p>
       )}
 
-      {/* "All" view — grouped by year with colored headers */}
       {selectedYearId === "" && filtered.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
           {grouped.map((g) => (
@@ -219,7 +322,6 @@ export default function StudentsList({ students, years, deleteAction }: Props) {
         </div>
       )}
 
-      {/* Single year view — no year column needed */}
       {selectedYearId !== "" && filtered.length > 0 && renderTable(filtered, false)}
     </>
   );

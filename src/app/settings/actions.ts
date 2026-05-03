@@ -1,12 +1,12 @@
 "use server"
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
-import { getSession } from "@/lib/auth";
+import { getStaffSession } from "@/lib/auth";
 import { logActivity } from "@/lib/logger";
 
 export async function changePassword(formData: FormData) {
-  const session = await getSession();
-  if (!session?.userId) return { error: "غير مصرح لك" };
+  const session = await getStaffSession();
+  if (!session) return { error: "غير مصرح لك" };
 
   const currentPassword = formData.get("currentPassword") as string;
   const newPassword = formData.get("newPassword") as string;

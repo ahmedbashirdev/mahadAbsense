@@ -1,10 +1,12 @@
-import { getSession } from "@/lib/auth";
+import { getStaffSession } from "@/lib/auth";
+import { redirect } from "next/navigation";
 import SettingsClient from "./SettingsClient";
 
 export const dynamic = 'force-dynamic';
 
 export default async function SettingsPage() {
-  const session = await getSession();
+  const session = await getStaffSession();
+  if (!session) redirect("/login");
 
   return (
     <>
@@ -16,7 +18,7 @@ export default async function SettingsPage() {
       </header>
 
       <div style={{ maxWidth: '600px' }}>
-         <SettingsClient username={session?.username} />
+         <SettingsClient username={session.username} />
       </div>
     </>
   );

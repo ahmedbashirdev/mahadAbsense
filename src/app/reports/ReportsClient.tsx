@@ -1,26 +1,49 @@
 "use client"
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { getYearReport } from "./actions";
 
-export default function ReportsClient({ years }: { years: any[] }) {
+type Year = { id: string; name: string };
+
+type Lecture = { id: string; date: Date; subjectName: string };
+
+type Student = { id: string; name: string };
+
+type AttendanceRecord = {
+  id: string;
+  status: string;
+  studentId: string;
+  subjectId: string;
+  date: Date;
+  dateStr: string;
+  subject: { id: string; name: string };
+};
+
+type ReportData = {
+  students: Student[];
+  lectures: Lecture[];
+  attendanceRecords: AttendanceRecord[];
+};
+
+export default function ReportsClient({ years }: { years: Year[] }) {
   const [selectedYearId, setSelectedYearId] = useState("");
   const [loading, setLoading] = useState(false);
-  const [reportData, setReportData] = useState<{
-    students: any[];
-    lectures: any[];
-    attendanceRecords: any[];
-  } | null>(null);
+  const [reportData, setReportData] = useState<ReportData | null>(null);
 
   useEffect(() => {
-    if (selectedYearId) {
-      setLoading(true);
-      getYearReport(selectedYearId).then((data) => {
-        setReportData(data);
-        setLoading(false);
-      });
-    } else {
-      setReportData(null);
+    if (!selectedYearId) {
+      Promise.resolve().then(() => setReportData(null));
+      return;
     }
+    let cancelled = false;
+    Promise.resolve().then(() => setLoading(true));
+    getYearReport(selectedYearId).then((data) => {
+      if (cancelled) return;
+      // Cast: server action returns prisma rows whose Date fields are real
+      // Date instances after Next serializes them. We pass through unchanged.
+      setReportData(data as unknown as ReportData);
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
   }, [selectedYearId]);
 
   return (
@@ -29,7 +52,7 @@ export default function ReportsClient({ years }: { years: any[] }) {
         <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.95rem', fontWeight: 600 }}>اختر المرحلة الدراسية</label>
         <select className="input-field" style={{ maxWidth: '400px' }} value={selectedYearId} onChange={(e) => setSelectedYearId(e.target.value)}>
           <option value="">اختر السنة لتبدأ...</option>
-          {years.map(y => (
+          {years.map((y) => (
             <option key={y.id} value={y.id}>{y.name}</option>
           ))}
         </select>
@@ -45,7 +68,7 @@ export default function ReportsClient({ years }: { years: any[] }) {
                 <thead>
                   <tr>
                     <th style={{ position: 'sticky', right: 0, backgroundColor: 'var(--bg-tertiary)', zIndex: 10, borderLeft: '1px solid var(--border-color)' }}>الطالب</th>
-                    {reportData.lectures.map((lec: any) => (
+                    {reportData.lectures.map((lec) => (
                       <th key={lec.id} style={{ textAlign: 'center', backgroundColor: 'var(--bg-tertiary)' }}>
                         <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                           {new Date(lec.date).toLocaleDateString('ar-EG', { month: 'short', day: 'numeric' })}
@@ -57,18 +80,19 @@ export default function ReportsClient({ years }: { years: any[] }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {reportData.students.map((student: any) => {
+                  {reportData.students.map((student) => {
                     let totalAbsences = 0;
                     return (
                       <tr key={student.id}>
                         <td style={{ position: 'sticky', right: 0, backgroundColor: 'var(--bg-secondary)', fontWeight: 600, zIndex: 5, borderLeft: '1px solid var(--border-color)' }}>
                           {student.name}
                         </td>
-                        {reportData.lectures.map((lec: any) => {
+                        {reportData.lectures.map((lec) => {
+                          const lecDateStr = new Date(lec.date).toISOString().split('T')[0];
                           const record = reportData.attendanceRecords.find(
-                            r => r.studentId === student.id && r.dateStr === lec.date.toISOString().split('T')[0] && r.subject.name === lec.subjectName
+                            (r) => r.studentId === student.id && r.dateStr === lecDateStr && r.subject.name === lec.subjectName
                           );
-                          
+
                           let display = "–";
                           let color = "var(--text-secondary)";
                           let bgColor = "transparent";
