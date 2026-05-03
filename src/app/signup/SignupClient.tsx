@@ -42,11 +42,6 @@ export default function SignupClient({ years }: { years: Year[] }) {
           </div>
 
           <div>
-            <label className="field-label" style={{ fontWeight: 600 }}>رقم الجلوس / التكويد (اختياري)</label>
-            <input type="text" name="identifier" className="input-field" maxLength={64} />
-          </div>
-
-          <div>
             <label className="field-label" style={{ fontWeight: 600 }}>السنة الدراسية</label>
             <select name="yearId" className="input-field" required defaultValue="">
               <option value="" disabled>اختر السنة...</option>

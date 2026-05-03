@@ -8,7 +8,6 @@ const USERNAME_RE = /^[a-z0-9._-]{3,32}$/i;
 
 export async function signupStudent(formData: FormData) {
   const name = ((formData.get("name") as string) || "").trim();
-  const identifier = ((formData.get("identifier") as string) || "").trim();
   const yearId = ((formData.get("yearId") as string) || "").trim();
   const genderRaw = ((formData.get("gender") as string) || "").trim();
   const username = ((formData.get("username") as string) || "").trim();
@@ -48,7 +47,6 @@ export async function signupStudent(formData: FormData) {
   const student = await prisma.student.create({
     data: {
       name,
-      identifier: identifier || null,
       yearId,
       gender: genderRaw,
       username,

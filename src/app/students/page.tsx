@@ -16,7 +16,6 @@ async function addStudent(formData: FormData) {
   if (!access) return;
 
   const name = formData.get("name") as string;
-  const identifier = formData.get("identifier") as string;
   const yearId = formData.get("yearId") as string;
   const genderRaw = formData.get("gender") as string;
   const gender = genderRaw === "FEMALE" ? "FEMALE" : "MALE";
@@ -27,7 +26,7 @@ async function addStudent(formData: FormData) {
   if (gender === "FEMALE" && !access.canViewFemale) return;
 
   await prisma.student.create({
-    data: { name, identifier: identifier || null, yearId, gender }
+    data: { name, yearId, gender }
   });
 
   await logActivity("إضافة طالب", `قام بإضافة الطالب ${name}`);
@@ -42,7 +41,6 @@ async function updateStudent(formData: FormData) {
 
   const id = formData.get("id") as string;
   const name = formData.get("name") as string;
-  const identifier = formData.get("identifier") as string;
   const yearId = formData.get("yearId") as string;
   const genderRaw = formData.get("gender") as string;
   const gender = genderRaw === "FEMALE" ? "FEMALE" : "MALE";
@@ -58,7 +56,7 @@ async function updateStudent(formData: FormData) {
 
   await prisma.student.update({
     where: { id },
-    data: { name, identifier: identifier || null, yearId, gender }
+    data: { name, yearId, gender }
   });
 
   await logActivity("تعديل طالب", `قام بتعديل بيانات الطالب ${name}`);
@@ -195,10 +193,6 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
                 <input type="text" name="name" className="input-field" defaultValue={studentToEdit.name} required />
               </div>
               <div>
-                <label className="field-label">رقم الجلوس / التكويد (اختياري)</label>
-                <input type="text" name="identifier" className="input-field" defaultValue={studentToEdit.identifier || ''} />
-              </div>
-              <div>
                 <label className="field-label">النوع</label>
                 <div className="gender-toggle">
                   <label className={`gender-option ${studentToEdit.gender === 'MALE' ? 'checked' : ''}`}>
@@ -300,10 +294,6 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
               <div>
                 <label className="field-label">اسم الطالب الرباعي</label>
                 <input type="text" name="name" className="input-field" required />
-              </div>
-              <div>
-                <label className="field-label">رقم الجلوس / التكويد (اختياري)</label>
-                <input type="text" name="identifier" className="input-field" />
               </div>
               <div>
                 <label className="field-label">النوع</label>

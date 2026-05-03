@@ -91,10 +91,6 @@ export default async function StudentHomePage() {
             <div style={{ fontWeight: 600 }}>{student.name}</div>
           </div>
           <div>
-            <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>الكود / رقم الجلوس</div>
-            <div style={{ fontWeight: 600 }}>{student.identifier || "-"}</div>
-          </div>
-          <div>
             <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>السنة الدراسية</div>
             <div style={{ fontWeight: 600 }}>{student.academicYear.name}</div>
           </div>

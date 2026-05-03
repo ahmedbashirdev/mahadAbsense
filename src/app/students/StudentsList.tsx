@@ -6,7 +6,6 @@ import { SubmitWithConfirm } from "@/components/SubmitWithConfirm";
 type Student = {
   id: string;
   name: string;
-  identifier: string | null;
   gender: string; // "MALE" | "FEMALE"
   username: string | null;
   isActive: boolean;
@@ -45,10 +44,7 @@ export default function StudentsList({ students, years, deleteAction, canViewFem
       if (selectedYearId && s.yearId !== selectedYearId) return false;
       if (genderFilter !== "ALL" && s.gender !== genderFilter) return false;
       if (!q) return true;
-      return (
-        s.name.toLowerCase().includes(q) ||
-        (s.identifier || "").toLowerCase().includes(q)
-      );
+      return s.name.toLowerCase().includes(q) || (s.username || "").toLowerCase().includes(q);
     });
   }, [students, selectedYearId, genderFilter, query]);
 
@@ -62,8 +58,7 @@ export default function StudentsList({ students, years, deleteAction, canViewFem
       if (genderFilter !== "ALL" && s.gender !== genderFilter) return;
       if (q) {
         const matches =
-          s.name.toLowerCase().includes(q) ||
-          (s.identifier || "").toLowerCase().includes(q);
+          s.name.toLowerCase().includes(q) || (s.username || "").toLowerCase().includes(q);
         if (!matches) return;
       }
       map.set("", (map.get("") || 0) + 1);
@@ -81,8 +76,7 @@ export default function StudentsList({ students, years, deleteAction, canViewFem
       if (selectedYearId && s.yearId !== selectedYearId) return;
       if (q) {
         const matches =
-          s.name.toLowerCase().includes(q) ||
-          (s.identifier || "").toLowerCase().includes(q);
+          s.name.toLowerCase().includes(q) || (s.username || "").toLowerCase().includes(q);
         if (!matches) return;
       }
       if (s.gender === "MALE") male++;
@@ -125,7 +119,7 @@ export default function StudentsList({ students, years, deleteAction, canViewFem
         <thead>
           <tr>
             <th>الاسم</th>
-            <th>الكود</th>
+            <th>اسم المستخدم</th>
             <th>النوع</th>
             {showYearColumn && <th>السنة الدراسية</th>}
             <th>إجراءات</th>
@@ -149,20 +143,10 @@ export default function StudentsList({ students, years, deleteAction, canViewFem
                     ⏸ موقوف
                   </span>
                 )}
-                {student.username && student.isActive && (
-                  <span
-                    style={{
-                      marginInlineStart: "0.5rem",
-                      fontSize: "0.7rem",
-                      color: "var(--text-tertiary)",
-                    }}
-                    dir="ltr"
-                  >
-                    @{student.username}
-                  </span>
-                )}
               </td>
-              <td style={{ color: "var(--text-secondary)" }}>{student.identifier || "-"}</td>
+              <td style={{ color: "var(--text-secondary)" }} dir="ltr">
+                {student.username ? `@${student.username}` : "-"}
+              </td>
               <td>{renderGenderBadge(student.gender)}</td>
               {showYearColumn && (
                 <td>
