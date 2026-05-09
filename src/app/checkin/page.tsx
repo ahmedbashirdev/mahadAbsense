@@ -66,14 +66,22 @@ export default async function CheckinPage({ searchParams }: { searchParams: Prom
     );
   }
 
- if (session.role !== 'STUDENT') {
-  return new Response("Unauthorized", { status: 403 });
-}
+  // After the STAFF early-return above, session is STUDENT or LECTURER.
+  // Only STUDENT accounts can check themselves in.
+  if (session.type !== "STUDENT") {
+    return (
+      <CheckinShell
+        title="هذا الحساب لا يمكنه تسجيل الحضور"
+        message="حساب المحاضر لا يستخدم هذه الصفحة. سجّل الدخول بحساب الطالب."
+        variant="error"
+      />
+    );
+  }
 
-// لو بتستخدم الـ role، ممكن تحتاج تقول للـ TypeScript صراحة إن دي جلسة طالب كده:
-const student = await prisma.student.findUnique({
-  where: { id: (session as any).studentId }, // أو الأفضل تستخدم الطريقة الأولى
-});
+  const student = await prisma.student.findUnique({
+    where: { id: session.studentId },
+    include: { academicYear: true },
+  });
   if (!student) redirect("/login");
 
   if (student.yearId !== subject.yearId) {
