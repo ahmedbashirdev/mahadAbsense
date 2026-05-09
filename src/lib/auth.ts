@@ -19,7 +19,13 @@ export type StudentSession = {
   username: string;
 };
 
-export type Session = StaffSession | StudentSession;
+export type LecturerSession = {
+  type: "LECTURER";
+  lecturerId: string;
+  username: string;
+};
+
+export type Session = StaffSession | StudentSession | LecturerSession;
 
 type JoseClaims = { iat?: number; exp?: number };
 
@@ -83,6 +89,26 @@ export async function loginStudentSession(student: { id: string; username: strin
   });
 }
 
+// Sign in a lecturer
+export async function loginLecturerSession(lecturer: { id: string; username: string }) {
+  const sessionData: LecturerSession = {
+    type: "LECTURER",
+    lecturerId: lecturer.id,
+    username: lecturer.username,
+  };
+
+  const token = await encrypt(sessionData as unknown as Record<string, unknown>);
+  const cookieStore = await cookies();
+
+  cookieStore.set("mahad_session", token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24
+  });
+}
+
 export async function logoutSession() {
   const cookieStore = await cookies();
   cookieStore.delete("mahad_session");
@@ -107,6 +133,13 @@ export async function getStudentSession(): Promise<StudentSession | null> {
   const s = await getSession();
   if (!s || s.type !== "STUDENT") return null;
   return s as StudentSession;
+}
+
+/** Convenience guard for lecturer-only endpoints */
+export async function getLecturerSession(): Promise<LecturerSession | null> {
+  const s = await getSession();
+  if (!s || s.type !== "LECTURER") return null;
+  return s as LecturerSession;
 }
 
 export async function updateSession(request: NextRequest) {

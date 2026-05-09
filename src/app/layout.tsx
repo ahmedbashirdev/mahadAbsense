@@ -35,6 +35,7 @@ export default async function RootLayout({
           <Link href="/" className="sidebar-link">📊 الرئيسية</Link>
           <Link href="/attendance" className="sidebar-link">📝 تسجيل الغياب</Link>
           <Link href="/attendance/session" className="sidebar-link">📱 جلسة QR للحضور</Link>
+          <Link href="/lecture-days" className="sidebar-link">📅 جدول المحاضرات</Link>
           <Link href="/reports" className="sidebar-link">📈 تقارير الدفعات</Link>
 
           <hr className="sidebar-sep" />
@@ -42,6 +43,7 @@ export default async function RootLayout({
           <Link href="/years" className="sidebar-link">📆 السنوات الدراسية</Link>
           <Link href="/subjects" className="sidebar-link">📚 المواد الدراسية</Link>
           <Link href="/students" className="sidebar-link">🧑‍🎓 الطلاب</Link>
+          <Link href="/lecturers" className="sidebar-link">👨‍🏫 المحاضرين</Link>
 
           {session.role === "ADMIN" && (
             <>
@@ -55,6 +57,26 @@ export default async function RootLayout({
           <Link href="/settings" className="sidebar-link">⚙️ إعدادات حسابي</Link>
         </nav>
 
+        <LogoutButton />
+      </>
+    );
+  } else if (session?.type === "LECTURER") {
+    const lecturer = await prisma.lecturer.findUnique({
+      where: { id: session.lecturerId },
+      select: { name: true },
+    });
+    sidebarContent = (
+      <>
+        <h2 className="sidebar-brand">حساب المحاضر</h2>
+        <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginBottom: "1rem" }}>
+          {lecturer?.name || session.username}
+        </p>
+        <nav className="sidebar-nav">
+          <Link href="/me-lecturer" className="sidebar-link">📊 لوحة بياناتي</Link>
+          <Link href="/me-lecturer/schedule" className="sidebar-link">📅 جدول المحاضرات</Link>
+          <hr className="sidebar-sep" />
+          <Link href="/me-lecturer/settings" className="sidebar-link">⚙️ تغيير كلمة المرور</Link>
+        </nav>
         <LogoutButton />
       </>
     );

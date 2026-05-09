@@ -50,6 +50,10 @@ model Subject {
   yearId       String
   academicYear AcademicYear @relation(fields: [yearId], references: [id], onDelete: Cascade)
   attendances  Attendance[]
+  // Lecturers who can teach this subject (M:N).
+  lecturers    Lecturer[]   @relation("LecturerSubjects")
+  // Concrete lecture instances scheduled for this subject.
+  lectures     Lecture[]
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 }
@@ -72,12 +76,117 @@ model Student {
   updatedAt    DateTime     @updatedAt
 }
 
+// Lecturers (instructors) who teach the subjects.
+model Lecturer {
+  id             String                 @id @default(cuid())
+  name           String
+  username       String?                @unique
+  password       String?                // bcrypt-hashed
+  // ADMIN-created lecturers default to APPROVED. Self-signup defaults to
+  // PENDING and only logs in once an admin approves them.
+  approvalStatus String                 @default("APPROVED") // "PENDING" | "APPROVED"
+  isActive       Boolean                @default(true)
+  // Subjects this lecturer is qualified to teach.
+  subjects       Subject[]              @relation("LecturerSubjects")
+  // Per-day availability responses.
+  availabilities LecturerAvailability[]
+  // Concrete scheduled lectures.
+  lectures       Lecture[]
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+}
+
+// A specific date on which lectures are held (e.g., Friday Nov 22 2025).
+// Admin creates these; lecturers respond with availability per day.
+model LectureDay {
+  id             String                 @id @default(cuid())
+  date           DateTime               @unique
+  label          String?                // e.g., "بعد صلاة الجمعة"
+  // Admin marks the schedule as published; this is what students see.
+  isPublished    Boolean                @default(false)
+  publishedAt    DateTime?
+  notes          String?
+  availabilities LecturerAvailability[]
+  lectures       Lecture[]
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+}
+
+// A lecturer's response for a specific lecture day.
+model LecturerAvailability {
+  id           String     @id @default(cuid())
+  lecturerId   String
+  lecturer     Lecturer   @relation(fields: [lecturerId], references: [id], onDelete: Cascade)
+  lectureDayId String
+  lectureDay   LectureDay @relation(fields: [lectureDayId], references: [id], onDelete: Cascade)
+  status       String     @default("PENDING") // "PENDING" | "CONFIRMED" | "DECLINED"
+  reason       String?    // Reason given when declining
+  respondedAt  DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([lecturerId, lectureDayId])
+}
+
+// A specific scheduled lecture in the timetable.
+model Lecture {
+  id           String     @id @default(cuid())
+  lectureDayId String
+  lectureDay   LectureDay @relation(fields: [lectureDayId], references: [id], onDelete: Cascade)
+  subjectId    String
+  subject      Subject    @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  lecturerId   String?
+  lecturer     Lecturer?  @relation(fields: [lecturerId], references: [id], onDelete: SetNull)
+  // Order within the day (1, 2, 3...). Admin sorts the day's lectures.
+  order        Int        @default(1)
+  // Free-form HH:MM strings; we don't bind to a specific timezone here.
+  startTime    String
+  endTime      String
+  notes        String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
 // Generic key/value settings for system-wide configuration
 // (e.g., per-subject absence warning threshold).
 model Setting {
   key       String   @id
   value     String
   updatedAt DateTime @updatedAt
+}
+
+// Persistent Telegram link between a Mahad account and a Telegram chat. We
+// only store the chat ID + display fields — DMing the user works as long as
+// the chat ID is alive.
+model TelegramSubscription {
+  id        String   @id @default(cuid())
+  // "STUDENT" | "LECTURER" | "STAFF"
+  userType  String
+  // student.id / lecturer.id / user.id
+  refId     String
+  chatId    String   @unique
+  // Snapshot of Telegram profile fields for display (the user might not have a username at all)
+  username  String?
+  firstName String?
+  lastName  String?
+  enabledAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userType, refId])
+}
+
+// Short-lived link codes used by the deep-link signup flow:
+//   /me -> click "اربط Telegram"  -> server creates a code and returns
+//   t.me/<bot>?start=<code>      -> Telegram opens, user hits Start
+//   bot receives /start <code>   -> webhook resolves code -> binds chat ID
+model TelegramLinkCode {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  userType  String
+  refId     String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
 }
 
 model Attendance {

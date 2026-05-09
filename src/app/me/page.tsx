@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getStudentSession } from "@/lib/auth";
 import { getAbsenceWarningThreshold } from "@/lib/settings";
+import ConnectTelegram from "@/components/ConnectTelegram";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +37,34 @@ export default async function StudentHomePage() {
     where: { studentId: student.id },
     include: { subject: true },
     orderBy: { date: "desc" },
+  });
+
+  // Telegram subscription status
+  const tgSub = await prisma.telegramSubscription.findUnique({
+    where: { userType_refId: { userType: "STUDENT", refId: student.id } },
+    select: { firstName: true, username: true },
+  });
+
+  // Published schedule for this student's year — upcoming days only.
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  const upcomingDays = await prisma.lectureDay.findMany({
+    where: {
+      isPublished: true,
+      date: { gte: today },
+      lectures: { some: { subject: { yearId: student.yearId } } },
+    },
+    include: {
+      lectures: {
+        where: { subject: { yearId: student.yearId } },
+        include: {
+          subject: true,
+          lecturer: { select: { name: true } },
+        },
+        orderBy: { order: "asc" },
+      },
+    },
+    orderBy: { date: "asc" },
   });
 
   // Per-subject summary
@@ -101,6 +130,14 @@ export default async function StudentHomePage() {
         </div>
       </section>
 
+      {/* Telegram connect */}
+      <section className="animate-fade-in" style={{ animationDelay: "0.07s", marginBottom: "1.5rem" }}>
+        <ConnectTelegram
+          isConnected={!!tgSub}
+          connectedAs={tgSub?.firstName || (tgSub?.username ? `@${tgSub.username}` : null)}
+        />
+      </section>
+
       {/* Warning banner */}
       {showWarning && (
         <section
@@ -125,6 +162,43 @@ export default async function StudentHomePage() {
               </li>
             ))}
           </ul>
+        </section>
+      )}
+
+      {/* Upcoming schedule */}
+      {upcomingDays.length > 0 && (
+        <section className="card animate-fade-in" style={{ animationDelay: "0.12s", marginBottom: "1.5rem" }}>
+          <h3 style={{ marginBottom: "1rem", fontWeight: 700 }}>📅 جدول المحاضرات القادمة</h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+            {upcomingDays.map((d) => (
+              <div key={d.id}>
+                <div style={{ fontWeight: 700, marginBottom: "0.5rem", color: "var(--accent-primary)" }}>
+                  {new Date(d.date).toLocaleDateString("ar-EG", { weekday: "long", day: "numeric", month: "long" })}
+                  {d.label && <span style={{ fontWeight: 400, color: "var(--text-secondary)", marginInlineStart: "0.5rem" }}>· {d.label}</span>}
+                </div>
+                <div style={{ overflowX: "auto" }}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>الوقت</th>
+                        <th>المادة</th>
+                        <th>المحاضر</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {d.lectures.map((l) => (
+                        <tr key={l.id}>
+                          <td dir="ltr" style={{ fontWeight: 600 }}>{l.startTime} – {l.endTime}</td>
+                          <td>{l.subject.name}</td>
+                          <td>{l.lecturer ? l.lecturer.name : <span style={{ color: "var(--text-tertiary)" }}>—</span>}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
+          </div>
         </section>
       )}
 

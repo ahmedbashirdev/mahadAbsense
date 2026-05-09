@@ -4,7 +4,7 @@ import Link from "next/link";
 import { loginAction } from "./actions";
 
 export default function LoginClient({ next }: { next: string }) {
-  const [accountType, setAccountType] = useState<"STAFF" | "STUDENT">("STUDENT");
+  const [accountType, setAccountType] = useState<"STAFF" | "STUDENT" | "LECTURER">("STUDENT");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -43,10 +43,17 @@ export default function LoginClient({ next }: { next: string }) {
           </button>
           <button
             type="button"
+            className={`login-tab ${accountType === "LECTURER" ? "active" : ""}`}
+            onClick={() => setAccountType("LECTURER")}
+          >
+            👨‍🏫 محاضر
+          </button>
+          <button
+            type="button"
             className={`login-tab ${accountType === "STAFF" ? "active" : ""}`}
             onClick={() => setAccountType("STAFF")}
           >
-            👤 موظف / إداري
+            👤 إداري
           </button>
         </div>
 
@@ -79,6 +86,11 @@ export default function LoginClient({ next }: { next: string }) {
         {accountType === "STUDENT" && (
           <p style={{ marginTop: '1.25rem', fontSize: '0.85rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
             ماعندكش حساب بعد؟ <Link href="/signup" style={{ color: 'var(--accent-primary)', fontWeight: 600 }}>سجل بنفسك</Link>
+          </p>
+        )}
+        {accountType === "LECTURER" && (
+          <p style={{ marginTop: '1.25rem', fontSize: '0.85rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
+            محاضر جديد؟ <Link href="/signup-lecturer" style={{ color: 'var(--accent-primary)', fontWeight: 600 }}>قدم على حساب</Link>
           </p>
         )}
       </div>
