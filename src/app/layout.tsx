@@ -50,6 +50,7 @@ export default async function RootLayout({
               <hr className="sidebar-sep" />
               <Link href="/users" className="sidebar-link">👥 إدارة المستخدمين</Link>
               <Link href="/activity" className="sidebar-link">⏱️ سجل النشاطات</Link>
+              <Link href="/admin/telegram" className="sidebar-link">📡 إعداد Telegram</Link>
             </>
           )}
 
