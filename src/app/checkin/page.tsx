@@ -66,10 +66,14 @@ export default async function CheckinPage({ searchParams }: { searchParams: Prom
     );
   }
 
-  const student = await prisma.student.findUnique({
-    where: { id: session.studentId },
-    include: { academicYear: true },
-  });
+ if (session.role !== 'STUDENT') {
+  return new Response("Unauthorized", { status: 403 });
+}
+
+// لو بتستخدم الـ role، ممكن تحتاج تقول للـ TypeScript صراحة إن دي جلسة طالب كده:
+const student = await prisma.student.findUnique({
+  where: { id: (session as any).studentId }, // أو الأفضل تستخدم الطريقة الأولى
+});
   if (!student) redirect("/login");
 
   if (student.yearId !== subject.yearId) {
