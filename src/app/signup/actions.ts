@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { loginStudentSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { normalizeArabicName } from "@/lib/arabicName";
 
 const USERNAME_RE = /^[a-z0-9._-]{3,32}$/i;
 
@@ -44,18 +45,50 @@ export async function signupStudent(formData: FormData) {
 
   const hashed = await bcrypt.hash(password, 10);
 
-  const student = await prisma.student.create({
-    data: {
-      name,
+  // ── Auto-link with an existing pre-created record ───────────────────────
+  // If the admin had already added this student (same year + gender + name)
+  // and that record hasn't been claimed yet (no username), link the new
+  // login to that record so the existing attendance history isn't orphaned.
+  // We're conservative: only auto-link if EXACTLY one candidate matches —
+  // ambiguous cases fall through to "create a new record" and the admin
+  // can merge later from the students page.
+  const candidates = await prisma.student.findMany({
+    where: {
       yearId,
       gender: genderRaw,
-      username,
-      password: hashed,
-      isActive: true,
+      username: null,
     },
-    select: { id: true, username: true },
+    select: { id: true, name: true },
   });
+  const target = normalizeArabicName(name);
+  const matches = candidates.filter((c) => normalizeArabicName(c.name) === target);
 
-  await loginStudentSession({ id: student.id, username: student.username! });
+  let studentId: string;
+  if (matches.length === 1) {
+    // Claim the pre-existing record. Keep its name (admin's spelling is
+    // assumed authoritative) and just attach credentials.
+    const claimed = await prisma.student.update({
+      where: { id: matches[0].id },
+      data: { username, password: hashed, isActive: true },
+      select: { id: true, username: true },
+    });
+    studentId = claimed.id;
+  } else {
+    // No unique match: create a fresh record.
+    const created = await prisma.student.create({
+      data: {
+        name,
+        yearId,
+        gender: genderRaw,
+        username,
+        password: hashed,
+        isActive: true,
+      },
+      select: { id: true, username: true },
+    });
+    studentId = created.id;
+  }
+
+  await loginStudentSession({ id: studentId, username });
   redirect("/me");
 }

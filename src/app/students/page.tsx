@@ -5,6 +5,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import StudentsList from "./StudentsList";
+import MergeStudentForm from "@/components/MergeStudentForm";
 import { getStudentAccess } from "@/lib/access";
 
 export const dynamic = 'force-dynamic';
@@ -106,6 +107,71 @@ async function setStudentCredentials(formData: FormData) {
   redirect(`/students?edit=${id}`);
 }
 
+/**
+ * Merge two student records: take all of `sourceId`'s attendance, copy it onto
+ * `destId` (skipping rows that would conflict with the unique
+ * date+student+subject constraint), then delete the source record entirely.
+ *
+ * Use case: a student self-signed-up and an admin had already created a record
+ * for them earlier (with attendance), so we ended up with two rows for one
+ * person. The admin picks one as the canonical record and merges the other in.
+ */
+async function mergeStudent(formData: FormData) {
+  "use server"
+  const access = await getStudentAccess();
+  if (!access) return;
+
+  const destId = ((formData.get("destId") as string) || "").trim();
+  const sourceId = ((formData.get("sourceId") as string) || "").trim();
+  if (!destId || !sourceId || destId === sourceId) return;
+
+  const [source, dest] = await Promise.all([
+    prisma.student.findUnique({ where: { id: sourceId }, select: { id: true, name: true, gender: true } }),
+    prisma.student.findUnique({ where: { id: destId }, select: { id: true, name: true, gender: true } }),
+  ]);
+  if (!source || !dest) return;
+  if (!access.allowedGenders.includes(source.gender as "MALE" | "FEMALE")) return;
+  if (!access.allowedGenders.includes(dest.gender as "MALE" | "FEMALE")) return;
+
+  const sourceAttendances = await prisma.attendance.findMany({
+    where: { studentId: source.id },
+    select: { date: true, subjectId: true, status: true },
+  });
+
+  await prisma.$transaction(async (tx) => {
+    for (const a of sourceAttendances) {
+      // upsert: if dest already has this lecture, keep dest's status (don't
+      // overwrite — admin's existing record is authoritative). Otherwise copy.
+      await tx.attendance.upsert({
+        where: {
+          date_studentId_subjectId: {
+            date: a.date,
+            studentId: dest.id,
+            subjectId: a.subjectId,
+          },
+        },
+        update: {},
+        create: {
+          date: a.date,
+          studentId: dest.id,
+          subjectId: a.subjectId,
+          status: a.status,
+        },
+      });
+    }
+    // Drop source's attendances + the source record itself.
+    await tx.attendance.deleteMany({ where: { studentId: source.id } });
+    await tx.student.delete({ where: { id: source.id } });
+  });
+
+  await logActivity(
+    "دمج سجلين طلاب",
+    `تم دمج سجل (${source.name}) داخل سجل (${dest.name}) ونقل ${sourceAttendances.length} سجل غياب`
+  );
+  revalidatePath("/students");
+  redirect(`/students?edit=${dest.id}`);
+}
+
 /** Suspend or re-activate a student's login. */
 async function toggleStudentActive(formData: FormData) {
   "use server"
@@ -170,6 +236,21 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
     include: { academicYear: true },
     orderBy: { createdAt: 'desc' }
   });
+
+  // Build the merge candidate list when editing: other students in the same
+  // year + gender as the one being edited (most likely a duplicate).
+  let mergeCandidates: { id: string; name: string; username: string | null; createdAt: Date }[] = [];
+  if (studentToEdit) {
+    mergeCandidates = await prisma.student.findMany({
+      where: {
+        id: { not: studentToEdit.id },
+        yearId: studentToEdit.yearId,
+        gender: studentToEdit.gender,
+      },
+      select: { id: true, name: true, username: true, createdAt: true },
+      orderBy: { name: "asc" },
+    });
+  }
 
   return (
     <>
@@ -286,6 +367,25 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
                   </p>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Merge with another student record (same year + gender) */}
+          {studentToEdit && mergeCandidates.length > 0 && (
+            <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px dashed var(--border-color)' }}>
+              <h4 style={{ fontWeight: 700, marginBottom: '0.5rem' }}>🔗 دمج مع سجل طالب آخر</h4>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+                لو لقيت إن الطالب ده موجود مرتين في النظام (مرة من تسجيلك ومرة من تسجيله بنفسه مثلاً)،
+                اختار السجل التاني وهيتنقل كل غيابه على السجل الحالي ثم يتم حذفه.
+              </p>
+              <MergeStudentForm
+                destId={studentToEdit.id}
+                candidates={mergeCandidates}
+                action={mergeStudent}
+              />
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginTop: '0.5rem' }}>
+                ملاحظة: المعرفات في القائمة محصورة على نفس السنة الدراسية ونفس النوع.
+              </p>
             </div>
           )}
 

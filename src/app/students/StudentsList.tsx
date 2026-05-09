@@ -196,7 +196,7 @@ export default function StudentsList({ students, years, deleteAction, canViewFem
         <input
           type="text"
           className="input-field students-search"
-          placeholder="ابحث باسم الطالب أو الكود..."
+          placeholder="ابحث باسم الطالب أو اسم المستخدم..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
