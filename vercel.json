@@ -7,10 +7,6 @@
     {
       "path": "/api/cron/student-day-reminders",
       "schedule": "0 17 * * *"
-    },
-    {
-      "path": "/api/cron/student-hour-reminders",
-      "schedule": "*/30 * * * *"
     }
   ]
 }
