@@ -26,8 +26,12 @@ export default function BroadcastButtons({ lectureDayId, canBroadcastStudents }:
     setResult(null);
     setAction("confirm");
     startTransition(async () => {
-      const r = (await notifyLecturersToConfirm(lectureDayId)) as Result;
-      setResult(r);
+      try {
+        const r = (await notifyLecturersToConfirm(lectureDayId)) as Result | undefined;
+        setResult(r || { error: "السيرفر ما رجعش رد" });
+      } catch (e) {
+        setResult({ error: e instanceof Error ? e.message : "خطأ غير متوقع" });
+      }
       router.refresh();
     });
   };
@@ -36,8 +40,12 @@ export default function BroadcastButtons({ lectureDayId, canBroadcastStudents }:
     setResult(null);
     setAction("schedule");
     startTransition(async () => {
-      const r = (await notifyStudentsOfSchedule(lectureDayId)) as Result;
-      setResult(r);
+      try {
+        const r = (await notifyStudentsOfSchedule(lectureDayId)) as Result | undefined;
+        setResult(r || { error: "السيرفر ما رجعش رد" });
+      } catch (e) {
+        setResult({ error: e instanceof Error ? e.message : "خطأ غير متوقع" });
+      }
       router.refresh();
     });
   };

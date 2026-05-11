@@ -91,9 +91,9 @@ export async function notifyStudentsOfSchedule(lectureDayId: string) {
       },
     },
   });
-  if (!day) return { ok: false, error: "Lecture day not found" };
-  if (!day.isPublished) return { ok: false, error: "Schedule not published yet" };
-  if (day.lectures.length === 0) return { ok: false, error: "No lectures scheduled" };
+  if (!day) return { ok: false, error: "اليوم غير موجود" };
+  if (!day.isPublished) return { ok: false, error: "الجدول لم يُنشر بعد. اضغط زرار النشر أولاً." };
+  if (day.lectures.length === 0) return { ok: false, error: "لا يوجد محاضرات في هذا اليوم" };
 
   // Group lectures by year so each student only sees their own year's lectures.
   const lecturesByYear = new Map<string, typeof day.lectures>();
@@ -107,6 +107,8 @@ export async function notifyStudentsOfSchedule(lectureDayId: string) {
   let sent = 0;
   let skipped = 0;
   let failed = 0;
+  let totalStudents = 0;
+  let totalSubscribed = 0;
 
   for (const [yearId, lectures] of lecturesByYear.entries()) {
     // All students in this year who have a Telegram subscription
@@ -114,12 +116,14 @@ export async function notifyStudentsOfSchedule(lectureDayId: string) {
       where: { yearId, isActive: true },
       select: { id: true },
     });
+    totalStudents += students.length;
     if (students.length === 0) continue;
 
     const subs = await prisma.telegramSubscription.findMany({
       where: { userType: "STUDENT", refId: { in: students.map((s) => s.id) } },
       select: { chatId: true },
     });
+    totalSubscribed += subs.length;
     if (subs.length === 0) {
       skipped += students.length;
       continue;
@@ -148,6 +152,21 @@ export async function notifyStudentsOfSchedule(lectureDayId: string) {
     "إرسال جدول للطلاب",
     `يوم ${dateLabel}: ${sent} طالب وصل، ${skipped} مش مربوطين بـ Telegram، ${failed} فشل`
   );
+
+  // If we did nothing useful, return a more explicit error so the admin
+  // can see exactly why.
+  if (sent === 0 && totalStudents === 0) {
+    return { ok: false, error: "لا يوجد طلاب نشطين في السنوات اللي فيها محاضرات اليوم" };
+  }
+  if (sent === 0 && totalSubscribed === 0) {
+    return {
+      ok: false,
+      error: `وصلنا لـ ${totalStudents} طالب لكن مفيش حد منهم ربط حسابه بـ Telegram. لازم الطلاب يدخلوا /me ويضغطوا "اربط Telegram" قبل ما يستقبلوا الجدول.`,
+      sent: 0,
+      skipped: totalStudents,
+      failed: 0,
+    };
+  }
 
   return { ok: true, sent, skipped, failed };
 }
