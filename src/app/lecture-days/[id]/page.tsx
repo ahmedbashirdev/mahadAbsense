@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getStaffSession } from "@/lib/auth";
 import { logActivity } from "@/lib/logger";
 import { SubmitWithConfirm } from "@/components/SubmitWithConfirm";
-import { notifyLecturersToConfirm, notifyStudentsOfSchedule } from "@/lib/telegramBroadcast";
+import BroadcastButtons from "./BroadcastButtons";
 
 export const dynamic = "force-dynamic";
 
@@ -84,22 +84,6 @@ async function moveLecture(formData: FormData) {
   ]);
 
   revalidatePath(`/lecture-days/${current.lectureDayId}`);
-}
-
-async function broadcastConfirm(formData: FormData) {
-  "use server"
-  const id = (formData.get("id") as string) || "";
-  if (!id) return;
-  await notifyLecturersToConfirm(id);
-  revalidatePath(`/lecture-days/${id}`);
-}
-
-async function broadcastSchedule(formData: FormData) {
-  "use server"
-  const id = (formData.get("id") as string) || "";
-  if (!id) return;
-  await notifyStudentsOfSchedule(id);
-  revalidatePath(`/lecture-days/${id}`);
 }
 
 async function publishDay(formData: FormData) {
@@ -202,29 +186,7 @@ export default async function LectureDayPage({ params }: { params: Promise<{ id:
       {/* Telegram broadcast actions */}
       <section className="card animate-fade-in" style={{ marginBottom: "1.5rem" }}>
         <h3 style={{ marginBottom: "1rem", fontWeight: 700 }}>📲 الإشعارات</h3>
-        <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-          <form action={broadcastConfirm}>
-            <input type="hidden" name="id" value={day.id} />
-            <button type="submit" className="btn btn-secondary" style={{ padding: "0.6rem 1rem" }}>
-              📨 ابعت طلب تأكيد للمحاضرين على Telegram
-            </button>
-          </form>
-          <form action={broadcastSchedule}>
-            <input type="hidden" name="id" value={day.id} />
-            <button
-              type="submit"
-              className={day.isPublished ? "btn btn-primary" : "btn btn-secondary"}
-              style={{ padding: "0.6rem 1rem" }}
-              disabled={!day.isPublished}
-              title={!day.isPublished ? "انشر الجدول الأول" : ""}
-            >
-              📤 ابعت الجدول للطلاب على Telegram
-            </button>
-          </form>
-        </div>
-        <p style={{ fontSize: "0.8rem", color: "var(--text-tertiary)", marginTop: "0.5rem" }}>
-          المستخدمين اللي مش مربوطين بـ Telegram هيتم تخطيهم تلقائيًا.
-        </p>
+        <BroadcastButtons lectureDayId={day.id} canBroadcastStudents={day.isPublished} />
       </section>
 
       {/* Availability panel */}
