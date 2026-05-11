@@ -158,19 +158,26 @@ export default async function MeLecturerPage() {
                     </div>
                   )}
 
-                  {a.status !== "CONFIRMED" && (
-                    <form action={respondAvailability} style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                      <input type="hidden" name="availabilityId" value={a.id} />
-                      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                  {/*
+                    Always show the action buttons — a lecturer might confirm by
+                    mistake and need to switch to decline, or change their mind
+                    back to "متاح". The button labels reflect the current state.
+                  */}
+                  <form action={respondAvailability} style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                    <input type="hidden" name="availabilityId" value={a.id} />
+                    <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                      {a.status !== "CONFIRMED" && (
                         <button name="status" value="CONFIRMED" type="submit" className="btn btn-primary" style={{ flex: 1, padding: "0.6rem" }}>
                           ✓ أؤكد الحضور
                         </button>
+                      )}
+                      {a.status !== "DECLINED" && (
                         <details style={{ flex: 1 }}>
                           <summary
                             className="btn btn-danger"
                             style={{ cursor: "pointer", justifyContent: "center", padding: "0.6rem", width: "100%" }}
                           >
-                            اعتذار عن الحضور
+                            {a.status === "CONFIRMED" ? "تراجع — اعتذار عن الحضور" : "اعتذار عن الحضور"}
                           </summary>
                           <div style={{ marginTop: "0.5rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
                             <textarea
@@ -185,9 +192,14 @@ export default async function MeLecturerPage() {
                             </button>
                           </div>
                         </details>
-                      </div>
-                    </form>
-                  )}
+                      )}
+                      {a.status === "DECLINED" && (
+                        <button name="status" value="CONFIRMED" type="submit" className="btn btn-primary" style={{ flex: 1, padding: "0.6rem" }}>
+                          ↩ تراجع — أكد الحضور
+                        </button>
+                      )}
+                    </div>
+                  </form>
                 </div>
               );
             })}
