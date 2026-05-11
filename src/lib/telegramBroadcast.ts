@@ -298,6 +298,90 @@ export async function sendLecturerReminders() {
   return { ok: true, sent, failed };
 }
 
+/**
+ * Notify all ADMINs (via Telegram) when a lecturer declines a lecture day.
+ * If ALL approved lecturers for that day have declined, escalate to a louder
+ * alert suggesting that the admin cancel/reschedule.
+ */
+export async function notifyAdminsOfLecturerDecline(availabilityId: string) {
+  const availability = await prisma.lecturerAvailability.findUnique({
+    where: { id: availabilityId },
+    include: {
+      lecturer: { select: { name: true } },
+      lectureDay: {
+        select: {
+          id: true,
+          date: true,
+          label: true,
+          availabilities: {
+            include: {
+              lecturer: {
+                select: { id: true, name: true, isActive: true, approvalStatus: true },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!availability) return { ok: false, error: "not found" };
+
+  const day = availability.lectureDay;
+
+  // Only consider responses from active + approved lecturers (otherwise we
+  // wouldn't have asked them in the first place).
+  const eligible = day.availabilities.filter(
+    (a) => a.lecturer.isActive && a.lecturer.approvalStatus === "APPROVED"
+  );
+  const confirmed = eligible.filter((a) => a.status === "CONFIRMED").length;
+  const declined = eligible.filter((a) => a.status === "DECLINED").length;
+  const pending = eligible.filter((a) => a.status === "PENDING").length;
+  const allDeclined = eligible.length > 0 && declined === eligible.length;
+
+  // Resolve admin Telegram chat IDs.
+  const admins = await prisma.user.findMany({
+    where: { role: "ADMIN" },
+    select: { id: true },
+  });
+  const subs = await prisma.telegramSubscription.findMany({
+    where: { userType: "STAFF", refId: { in: admins.map((u) => u.id) } },
+    select: { chatId: true },
+  });
+  if (subs.length === 0) return { ok: true, sent: 0, note: "no admin telegram subscriptions" };
+
+  const dateLabel = formatArabicDate(day.date);
+  const dayLink = APP_URL ? `\n${APP_URL}/lecture-days/${day.id}` : "";
+  const reasonLine = availability.reason ? `\n📝 السبب: ${escapeHtml(availability.reason)}` : "";
+
+  let text: string;
+  if (allDeclined) {
+    text = [
+      `🚨 <b>تنبيه: كل المحاضرين اعتذروا عن اليوم!</b>`,
+      ``,
+      `يوم: <b>${escapeHtml(dateLabel)}</b>`,
+      day.label ? `(${escapeHtml(day.label)})` : "",
+      ``,
+      `إجمالي المحاضرين: ${eligible.length}`,
+      `جميعهم اعتذروا. يُنصح بإلغاء اليوم أو إعادة الجدولة.${dayLink}`,
+    ].filter(Boolean).join("\n");
+  } else {
+    text = [
+      `⚠️ <b>محاضر اعتذر عن يوم محاضرات</b>`,
+      ``,
+      `👨‍🏫 المحاضر: ${escapeHtml(availability.lecturer.name)}`,
+      `📅 اليوم: <b>${escapeHtml(dateLabel)}</b>`,
+      day.label ? `(${escapeHtml(day.label)})` : "",
+      reasonLine,
+      ``,
+      `الحالة الآن:`,
+      `   ✓ ${confirmed} مؤكد · ✗ ${declined} معتذر · ⏳ ${pending} لم يرد${dayLink}`,
+    ].filter(Boolean).join("\n");
+  }
+
+  const r = await broadcastTelegramMessage(subs.map((s) => s.chatId), text);
+  return { ok: true, sent: r.sent, failed: r.failed, allDeclined };
+}
+
 /** Helper for the Telegram deep-link button (used by client components). */
 export async function getBotDeepLinkInfo() {
   const link = getTelegramDeepLink("___");

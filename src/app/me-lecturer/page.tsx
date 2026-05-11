@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getLecturerSession } from "@/lib/auth";
 import ConnectTelegram from "@/components/ConnectTelegram";
+import { notifyAdminsOfLecturerDecline } from "@/lib/telegramBroadcast";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,19 @@ async function respondAvailability(formData: FormData) {
       respondedAt: new Date(),
     },
   });
+
+  // When a lecturer declines, ping the admins so they know — and warn loudly
+  // if no one is available for that day anymore.
+  if (status === "DECLINED") {
+    // Fire-and-forget would be cleaner, but we await so any Telegram error is
+    // captured in the same request (logged to Vercel's function logs).
+    try {
+      await notifyAdminsOfLecturerDecline(availabilityId);
+    } catch (e) {
+      console.error("notifyAdminsOfLecturerDecline failed:", e);
+    }
+  }
+
   revalidatePath("/me-lecturer");
 }
 
