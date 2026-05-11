@@ -164,7 +164,10 @@ model TelegramSubscription {
   userType  String
   // student.id / lecturer.id / user.id
   refId     String
-  chatId    String   @unique
+  // The same Telegram chat may be bound to multiple Mahad accounts (e.g., a
+  // parent who manages two of their kids' accounts), so chatId is intentionally
+  // NOT unique. Uniqueness is per-Mahad-account via the composite below.
+  chatId    String
   // Snapshot of Telegram profile fields for display (the user might not have a username at all)
   username  String?
   firstName String?
@@ -173,6 +176,7 @@ model TelegramSubscription {
   updatedAt DateTime @updatedAt
 
   @@unique([userType, refId])
+  @@index([chatId])
 }
 
 // Short-lived link codes used by the deep-link signup flow:

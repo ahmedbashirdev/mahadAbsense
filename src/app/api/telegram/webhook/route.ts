@@ -67,13 +67,11 @@ async function handleStartCommand(message: TelegramMessage, code: string) {
     if (u) displayName = u.name;
   }
 
-  // Bind the chatId to the user. Upsert handles re-binding (same user, new chat
-  // or same chat re-binding to a different user).
+  // Bind the chatId to THIS Mahad account. We intentionally do NOT remove
+  // other subscriptions on the same chat — a single Telegram user might be
+  // managing several Mahad accounts (e.g., a parent with two kids).
   try {
     await prisma.$transaction([
-      // Remove any existing subscription for THIS chat (in case it was bound to another account).
-      prisma.telegramSubscription.deleteMany({ where: { chatId: String(chatId) } }),
-      // Upsert the subscription for THIS user.
       prisma.telegramSubscription.upsert({
         where: { userType_refId: { userType: link.userType, refId: link.refId } },
         update: {
