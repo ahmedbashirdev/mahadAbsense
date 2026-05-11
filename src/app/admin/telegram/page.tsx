@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
+import { prisma } from "@/lib/prisma";
 import { getStaffSession } from "@/lib/auth";
 import { getBotMe, getTelegramWebhookInfo } from "@/lib/telegram";
+import ConnectTelegram from "@/components/ConnectTelegram";
 import TelegramSetupClient from "./TelegramSetupClient";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +14,14 @@ export default async function TelegramSetupPage() {
   if (session.role !== "ADMIN") redirect("/");
 
   // Fetch current bot status + webhook on render so the page reflects reality.
-  const [me, webhook] = await Promise.all([getBotMe(), getTelegramWebhookInfo()]);
+  const [me, webhook, ownTgSub] = await Promise.all([
+    getBotMe(),
+    getTelegramWebhookInfo(),
+    prisma.telegramSubscription.findUnique({
+      where: { userType_refId: { userType: "STAFF", refId: session.userId } },
+      select: { firstName: true, username: true },
+    }),
+  ]);
 
   // Determine the expected webhook URL the admin should be setting.
   let expectedUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || "";
@@ -36,6 +45,17 @@ export default async function TelegramSetupPage() {
           <p className="page-subtitle">ربط الـ Bot بهذا الـ deployment وتسجيل الـ webhook</p>
         </div>
       </header>
+
+      <section className="animate-fade-in" style={{ marginBottom: "1.5rem" }}>
+        <h3 style={{ marginBottom: "0.75rem", fontWeight: 700 }}>اربط حسابك الإداري بـ Telegram</h3>
+        <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginBottom: "0.75rem" }}>
+          هتوصلك إشعارات لما المحاضرين يعتذروا، أو لما كل المحاضرين يعتذروا عن يوم محاضرات. لازم تربط حسابك علشان تستلم هذه التنبيهات.
+        </p>
+        <ConnectTelegram
+          isConnected={!!ownTgSub}
+          connectedAs={ownTgSub?.firstName || (ownTgSub?.username ? `@${ownTgSub.username}` : null)}
+        />
+      </section>
 
       <section className="card animate-fade-in" style={{ marginBottom: "1.5rem" }}>
         <h3 style={{ marginBottom: "1rem", fontWeight: 700 }}>1. حالة الـ Bot</h3>

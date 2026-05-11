@@ -159,7 +159,7 @@ export default async function LectureDaysPage() {
             </button>
             <p style={{ fontSize: "0.8rem", color: "var(--text-tertiary)" }}>
               ملحوظة: لما تنشئ اليوم، كل المحاضرين المعتمدين هيشوفوه في حسابهم ويقدروا يأكدوا أو يعتذروا.
-              (الإشعارات على Telegram هتنضاف لاحقًا.)
+              ابعت طلب التأكيد على Telegram من صفحة اليوم نفسه (زرار 📨 ابعت طلب تأكيد للمحاضرين).
             </p>
           </form>
         </section>
