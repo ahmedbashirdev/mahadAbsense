@@ -65,11 +65,10 @@ export default function BroadcastButtons({ lectureDayId, canBroadcastStudents }:
 
         <button
           type="button"
-          className={canBroadcastStudents ? "btn btn-primary" : "btn btn-secondary"}
+          className="btn btn-primary"
           onClick={runSchedule}
-          disabled={pending || !canBroadcastStudents}
+          disabled={pending}
           style={{ padding: "0.6rem 1rem" }}
-          title={!canBroadcastStudents ? "انشر الجدول الأول" : ""}
         >
           {pending && action === "schedule" ? "جاري الإرسال..." : "📤 ابعت الجدول للطلاب على Telegram"}
         </button>
@@ -77,6 +76,12 @@ export default function BroadcastButtons({ lectureDayId, canBroadcastStudents }:
 
       <p style={{ fontSize: "0.8rem", color: "var(--text-tertiary)", marginTop: "0.5rem" }}>
         المستخدمين اللي مش مربوطين بـ Telegram هيتم تخطيهم تلقائيًا.
+        {!canBroadcastStudents && (
+          <>
+            <br />
+            ⚠️ الجدول لسه مش منشور — لازم تضغط <strong>✓ نشر الجدول للطلاب</strong> فوق أولاً قبل ما تبعت.
+          </>
+        )}
       </p>
 
       {result && (
