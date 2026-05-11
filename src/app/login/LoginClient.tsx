@@ -33,28 +33,47 @@ export default function LoginClient({ next }: { next: string }) {
           تسجيل الدخول
         </p>
 
-        <div className="login-tabs">
-          <button
-            type="button"
-            className={`login-tab ${accountType === "STUDENT" ? "active" : ""}`}
-            onClick={() => setAccountType("STUDENT")}
-          >
-            🧑‍🎓 طالب
-          </button>
-          <button
-            type="button"
-            className={`login-tab ${accountType === "LECTURER" ? "active" : ""}`}
-            onClick={() => setAccountType("LECTURER")}
-          >
-            👨‍🏫 محاضر
-          </button>
-          <button
-            type="button"
-            className={`login-tab ${accountType === "STAFF" ? "active" : ""}`}
-            onClick={() => setAccountType("STAFF")}
-          >
-            👤 إداري
-          </button>
+        {/*
+          Render the tabs as radio inputs wrapped in labels. Radio change events
+          fire reliably on every browser and touch device, unlike <button>
+          onClick which gets swallowed by some Android browsers when the tap is
+          short or interrupted (the user reported a focus-ring without an
+          actual state change).
+        */}
+        <div className="login-tabs" role="tablist">
+          <label className={`login-tab ${accountType === "STUDENT" ? "active" : ""}`}>
+            <input
+              type="radio"
+              name="account-type"
+              value="STUDENT"
+              checked={accountType === "STUDENT"}
+              onChange={() => setAccountType("STUDENT")}
+              className="login-tab-input"
+            />
+            <span>🧑‍🎓 طالب</span>
+          </label>
+          <label className={`login-tab ${accountType === "LECTURER" ? "active" : ""}`}>
+            <input
+              type="radio"
+              name="account-type"
+              value="LECTURER"
+              checked={accountType === "LECTURER"}
+              onChange={() => setAccountType("LECTURER")}
+              className="login-tab-input"
+            />
+            <span>👨‍🏫 محاضر</span>
+          </label>
+          <label className={`login-tab ${accountType === "STAFF" ? "active" : ""}`}>
+            <input
+              type="radio"
+              name="account-type"
+              value="STAFF"
+              checked={accountType === "STAFF"}
+              onChange={() => setAccountType("STAFF")}
+              className="login-tab-input"
+            />
+            <span>👤 إداري</span>
+          </label>
         </div>
 
         {error && (
