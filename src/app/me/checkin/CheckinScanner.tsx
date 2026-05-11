@@ -51,6 +51,15 @@ export default function CheckinScanner() {
     };
   }, []);
 
+  // Preload jsQR in the background as soon as the scanner mounts. That way
+  // by the time the user taps "Open camera" the decoder is already in the
+  // browser cache and the camera opens with no extra wait.
+  useEffect(() => {
+    if (typeof window !== "undefined" && !window.BarcodeDetector) {
+      import("jsqr").catch(() => {});
+    }
+  }, []);
+
   const handleDetected = (raw: string) => {
     stop();
     try {
