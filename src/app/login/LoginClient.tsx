@@ -66,7 +66,19 @@ export default function LoginClient({ next }: { next: string }) {
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           <div>
             <label className="field-label" style={{ fontWeight: 600 }}>اسم المستخدم</label>
-            <input type="text" name="username" className="input-field" required placeholder={accountType === "STUDENT" ? "اسم المستخدم بتاع الطالب" : "مثال: admin"} />
+            <input
+              type="text"
+              name="username"
+              className="input-field"
+              required
+              placeholder={
+                accountType === "STUDENT"
+                  ? "اسم المستخدم بتاع الطالب"
+                  : accountType === "LECTURER"
+                  ? "اسم المستخدم بتاع المحاضر"
+                  : "مثال: admin"
+              }
+            />
           </div>
           <div>
             <label className="field-label" style={{ fontWeight: 600 }}>كلمة المرور</label>
