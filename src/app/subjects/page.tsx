@@ -13,11 +13,14 @@ async function addSubject(formData: FormData) {
   const name = formData.get("name") as string;
   const termType = formData.get("termType") as string;
   const yearId = formData.get("yearId") as string;
+  const bookName = (formData.get("bookName") as string)?.trim() || null;
+  const targetPageStr = formData.get("targetPage") as string;
+  const targetPage = targetPageStr ? parseInt(targetPageStr, 10) : null;
   
   if (!name || !termType || !yearId) return;
   
   await prisma.subject.create({
-    data: { name, termType, yearId }
+    data: { name, termType, yearId, bookName, targetPage }
   });
   
   await logActivity("إضافة مادة", `قام بإضافة المادة ${name}`);
@@ -31,12 +34,15 @@ async function updateSubject(formData: FormData) {
   const name = formData.get("name") as string;
   const termType = formData.get("termType") as string;
   const yearId = formData.get("yearId") as string;
+  const bookName = (formData.get("bookName") as string)?.trim() || null;
+  const targetPageStr = formData.get("targetPage") as string;
+  const targetPage = targetPageStr ? parseInt(targetPageStr, 10) : null;
   
   if (!id || !name || !termType || !yearId) return;
   
   await prisma.subject.update({
     where: { id },
-    data: { name, termType, yearId }
+    data: { name, termType, yearId, bookName, targetPage }
   });
   
   await logActivity("تعديل مادة", `قام بتعديل المادة ${name}`);
@@ -108,6 +114,14 @@ export default async function SubjectsPage({ searchParams }: { searchParams: Pro
                   <option value="TWO_TERMS">ترمين (ممتدة)</option>
                 </select>
               </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>اسم الكتاب (اختياري)</label>
+                <input type="text" name="bookName" className="input-field" defaultValue={subjectToEdit.bookName || ""} placeholder="مثال: التوحيد للشيخ الفوزان" />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>رقم الصفحة المستهدفة (اختياري)</label>
+                <input type="number" name="targetPage" className="input-field" defaultValue={subjectToEdit.targetPage || ""} placeholder="مثال: 150" />
+              </div>
               <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
                 <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>حفظ التعديلات</button>
                 <Link href="/subjects" className="btn btn-danger" style={{ flex: 1, textAlign: 'center', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>إلغاء</Link>
@@ -135,6 +149,14 @@ export default async function SubjectsPage({ searchParams }: { searchParams: Pro
                   <option value="TWO_TERMS">ترمين (ممتدة)</option>
                 </select>
               </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>اسم الكتاب (اختياري)</label>
+                <input type="text" name="bookName" className="input-field" placeholder="مثال: التوحيد للشيخ الفوزان" />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>رقم الصفحة المستهدفة (اختياري)</label>
+                <input type="number" name="targetPage" className="input-field" placeholder="مثال: 150" />
+              </div>
               <button type="submit" className="btn btn-primary" style={{ marginTop: '0.5rem' }}>
                 إضافة المادة
               </button>
@@ -151,21 +173,19 @@ export default async function SubjectsPage({ searchParams }: { searchParams: Pro
                   <tr>
                     <th>المادة</th>
                     <th>السنة الدراسية</th>
-                    <th>النوع</th>
+                    <th>الكتاب</th>
+                    <th>الهدف</th>
                     <th>إجراءات</th>
                   </tr>
                 </thead>
                 <tbody>
                   {subjects.map(subject => (
                     <tr key={subject.id}>
-                      <td style={{ fontWeight: 600 }}>{subject.name}</td>
-                      <td>{subject.academicYear.name}</td>
-                      <td>
-                        <span className="status-badge" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-                           {subject.termType === 'ONE_TERM' ? 'ترم واحد' : 'ممتدة على ترمين'}
-                        </span>
-                      </td>
-                      <td>
+                      <td data-label="المادة" style={{ fontWeight: 600 }}>{subject.name}</td>
+                      <td data-label="السنة الدراسية">{subject.academicYear.name}</td>
+                      <td data-label="الكتاب">{subject.bookName || <span style={{ color: "var(--text-tertiary)" }}>—</span>}</td>
+                      <td data-label="الهدف">{subject.targetPage ? `ص ${subject.targetPage}` : <span style={{ color: "var(--text-tertiary)" }}>—</span>}</td>
+                      <td data-label="إجراءات">
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
                           <Link href={`/subjects?edit=${subject.id}`} className="btn" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)', padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>
                             تعديل

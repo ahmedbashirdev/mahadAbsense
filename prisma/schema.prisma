@@ -54,6 +54,9 @@ model Subject {
   lecturers    Lecturer[]   @relation("LecturerSubjects")
   // Concrete lecture instances scheduled for this subject.
   lectures     Lecture[]
+  // Curriculum tracking
+  bookName     String?      // The book assigned to this subject
+  targetPage   Int?         // The page to reach by the end of the term
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 }
@@ -145,6 +148,7 @@ model Lecture {
   notes        String?
   // Lecturer's comment on what was covered in the syllabus for students
   syllabusProgress String?
+  reachedPage      Int?     // The specific page the lecturer reached today
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 }

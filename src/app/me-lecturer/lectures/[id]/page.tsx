@@ -12,6 +12,8 @@ async function saveProgress(formData: FormData) {
 
   const lectureId = formData.get("lectureId") as string;
   const progress = (formData.get("syllabusProgress") as string)?.trim() || null;
+  const reachedPageStr = formData.get("reachedPage") as string;
+  const reachedPage = reachedPageStr ? parseInt(reachedPageStr, 10) : null;
 
   if (!lectureId) return;
 
@@ -24,7 +26,7 @@ async function saveProgress(formData: FormData) {
 
   await prisma.lecture.update({
     where: { id: lectureId },
-    data: { syllabusProgress: progress },
+    data: { syllabusProgress: progress, reachedPage },
   });
 
   revalidatePath(`/me-lecturer/lectures/${lectureId}`);
@@ -60,7 +62,7 @@ export default async function LecturerSyllabusProgressPage({ params }: { params:
       <header className="page-header animate-fade-in">
         <div>
           <h1 className="page-title">ما تم إنجازه في المنهج</h1>
-          <p className="page-subtitle">سجل تعليقك للطلاب عن ما تم تدريسه في هذه المحاضرة</p>
+          <p className="page-subtitle">سجل تعليقك للطلاب ورقم الصفحة التي وصلت إليها في المنهج</p>
         </div>
       </header>
 
@@ -80,22 +82,62 @@ export default async function LecturerSyllabusProgressPage({ params }: { params:
               <div style={{ fontWeight: 600 }}>{dateStr}</div>
             </div>
             <div>
+              <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>الكتاب</div>
+              <div style={{ fontWeight: 600 }}>{lecture.subject.bookName || "غير محدد"}</div>
+            </div>
+            <div>
               <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>الوقت</div>
               <div style={{ fontWeight: 600 }} dir="ltr">{lecture.startTime} – {lecture.endTime}</div>
             </div>
           </div>
+
+          {lecture.subject.targetPage && (
+            <div style={{ marginTop: "1.5rem", padding: "1rem", backgroundColor: "rgba(59, 130, 246, 0.05)", borderRadius: "var(--border-radius-sm)", border: "1px solid rgba(59, 130, 246, 0.2)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.5rem" }}>
+                <span style={{ fontWeight: 600, color: "var(--accent-primary)" }}>نسبة الإنجاز في المنهج للترم</span>
+                <span style={{ fontWeight: 700 }}>
+                  {lecture.reachedPage ? Math.min(100, Math.round((lecture.reachedPage / lecture.subject.targetPage) * 100)) : 0}%
+                </span>
+              </div>
+              <div style={{ width: "100%", height: "8px", backgroundColor: "var(--border-color)", borderRadius: "999px", overflow: "hidden" }}>
+                <div 
+                  style={{ 
+                    height: "100%", 
+                    backgroundColor: "var(--accent-primary)", 
+                    width: `${lecture.reachedPage ? Math.min(100, Math.round((lecture.reachedPage / lecture.subject.targetPage) * 100)) : 0}%`,
+                    transition: "width 0.5s ease"
+                  }} 
+                />
+              </div>
+              <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginTop: "0.5rem", textAlign: "left" }}>
+                الهدف: {lecture.subject.targetPage} صفحة
+              </div>
+            </div>
+          )}
         </div>
 
         <form action={saveProgress} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
           <input type="hidden" name="lectureId" value={lecture.id} />
           
           <div className="form-group">
-            <label>تعليق المنهج (يظهر للطلاب):</label>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>رقم الصفحة التي تم الوصول إليها:</label>
+            <input
+              type="number"
+              name="reachedPage"
+              className="input-field"
+              placeholder={lecture.subject.targetPage ? `أقصى صفحة مستهدفة: ${lecture.subject.targetPage}` : "مثال: 45"}
+              defaultValue={lecture.reachedPage || ""}
+              style={{ padding: "0.8rem" }}
+            />
+          </div>
+
+          <div className="form-group">
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>تعليق المنهج (يظهر للطلاب):</label>
             <textarea
               name="syllabusProgress"
               className="input-field"
-              rows={5}
-              placeholder="مثال: تم شرح الفصل الأول من صفحة 10 إلى 25 والتركيز على أهمية كذا..."
+              rows={4}
+              placeholder="مثال: تم شرح الفصل الأول والتركيز على أهمية كذا..."
               defaultValue={lecture.syllabusProgress || ""}
               style={{ resize: "vertical", padding: "1rem", lineHeight: "1.6" }}
             />

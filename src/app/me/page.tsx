@@ -67,20 +67,23 @@ export default async function StudentHomePage() {
     orderBy: { date: "asc" },
   });
 
-  // Recent syllabus progress (past lectures with comments)
-  const recentProgress = await prisma.lecture.findMany({
-    where: {
-      subject: { yearId: student.yearId },
-      syllabusProgress: { not: null },
-      lectureDay: { date: { lt: today } }, // Only show progress for past days
-    },
+  // Syllabus progress per subject
+  const subjectsProgress = await prisma.subject.findMany({
+    where: { yearId: student.yearId },
     include: {
-      subject: true,
-      lectureDay: true,
-      lecturer: { select: { name: true } },
-    },
-    orderBy: { lectureDay: { date: "desc" } },
-    take: 10,
+      lectures: {
+        where: {
+          OR: [
+            { syllabusProgress: { not: null } },
+            { reachedPage: { not: null } }
+          ],
+          lectureDay: { date: { lt: today } }
+        },
+        orderBy: { lectureDay: { date: "desc" } },
+        take: 1,
+        include: { lecturer: { select: { name: true } }, lectureDay: true }
+      }
+    }
   });
 
   // Per-subject summary
@@ -219,28 +222,66 @@ export default async function StudentHomePage() {
       )}
 
       {/* Syllabus Progress */}
-      {recentProgress.length > 0 && (
+      {subjectsProgress.length > 0 && (
         <section className="card animate-fade-in" style={{ animationDelay: "0.13s", marginBottom: "1.5rem" }}>
-          <h3 style={{ marginBottom: "1rem", fontWeight: 700 }}>📖 ما تم إنجازه في المنهج</h3>
+          <h3 style={{ marginBottom: "1rem", fontWeight: 700 }}>📖 متابعة المناهج</h3>
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            {recentProgress.map((p) => (
-              <div key={p.id} style={{ padding: "1rem", backgroundColor: "var(--bg-secondary)", borderRadius: "var(--border-radius-sm)", border: "1px solid var(--border-color)" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.5rem" }}>
-                  <div style={{ fontWeight: 700, color: "var(--accent-primary)" }}>{p.subject.name}</div>
-                  <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-                    {new Date(p.lectureDay.date).toLocaleDateString("ar-EG", { day: "numeric", month: "long" })}
+            {subjectsProgress.map((sub) => {
+              const latestLec = sub.lectures[0];
+              const reached = latestLec?.reachedPage || 0;
+              const target = sub.targetPage || 0;
+              const percent = target > 0 ? Math.min(100, Math.round((reached / target) * 100)) : 0;
+              
+              return (
+                <div key={sub.id} style={{ padding: "1rem", backgroundColor: "var(--bg-secondary)", borderRadius: "var(--border-radius-sm)", border: "1px solid var(--border-color)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                    <div style={{ fontWeight: 700, color: "var(--accent-primary)" }}>{sub.name}</div>
+                    {sub.bookName && (
+                      <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", backgroundColor: "var(--bg-tertiary)", padding: "0.2rem 0.5rem", borderRadius: "999px" }}>
+                        📚 {sub.bookName}
+                      </div>
+                    )}
                   </div>
+                  
+                  {sub.targetPage && (
+                    <div style={{ marginTop: "1rem", marginBottom: "1rem" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.4rem", fontSize: "0.85rem" }}>
+                        <span>نسبة الإنجاز في المنهج</span>
+                        <span style={{ fontWeight: 700 }}>{percent}%</span>
+                      </div>
+                      <div style={{ width: "100%", height: "6px", backgroundColor: "var(--bg-tertiary)", borderRadius: "999px", overflow: "hidden" }}>
+                        <div 
+                          style={{ 
+                            height: "100%", 
+                            backgroundColor: percent >= 100 ? "var(--success)" : "var(--accent-primary)", 
+                            width: `${percent}%`,
+                            transition: "width 1s ease"
+                          }} 
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {latestLec && latestLec.syllabusProgress && (
+                    <div style={{ marginTop: "1rem", padding: "0.75rem", backgroundColor: "var(--bg-tertiary)", borderRadius: "var(--border-radius-sm)", borderInlineStart: "3px solid var(--accent-primary)" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.25rem", fontSize: "0.8rem", color: "var(--text-secondary)" }}>
+                        <span>أحدث تعليق ({new Date(latestLec.lectureDay.date).toLocaleDateString("ar-EG", { day: "numeric", month: "long" })})</span>
+                        {latestLec.lecturer && <span>👨‍🏫 {latestLec.lecturer.name}</span>}
+                      </div>
+                      <div style={{ fontSize: "0.9rem", color: "var(--text-primary)", whiteSpace: "pre-wrap", lineHeight: "1.6" }}>
+                        {latestLec.syllabusProgress}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {!latestLec && (
+                    <div style={{ fontSize: "0.85rem", color: "var(--text-tertiary)", marginTop: "0.5rem" }}>
+                      لم يتم تسجيل أي تقدم بعد.
+                    </div>
+                  )}
                 </div>
-                <div style={{ fontSize: "0.9rem", color: "var(--text-primary)", whiteSpace: "pre-wrap", lineHeight: "1.6" }}>
-                  {p.syllabusProgress}
-                </div>
-                {p.lecturer && (
-                  <div style={{ marginTop: "0.75rem", fontSize: "0.8rem", color: "var(--text-tertiary)" }}>
-                    👨‍🏫 {p.lecturer.name}
-                  </div>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
       )}
