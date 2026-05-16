@@ -52,6 +52,7 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  line-height: 1.7;
 }
 
 /* Utilities */
@@ -115,6 +116,16 @@ body {
 
 .btn-danger:hover {
   filter: brightness(0.9);
+}
+
+.btn-outline-danger {
+  background-color: transparent;
+  color: var(--danger);
+  border: 1px solid var(--danger);
+}
+
+.btn-outline-danger:hover {
+  background-color: rgba(239, 68, 68, 0.08);
 }
 
 .input-field {
@@ -277,6 +288,47 @@ th {
 
 tr:hover td {
   background-color: var(--bg-primary);
+}
+
+@media (max-width: 768px) {
+  /* Simple mobile table cards strategy */
+  .table-responsive-cards table, 
+  .table-responsive-cards thead, 
+  .table-responsive-cards tbody, 
+  .table-responsive-cards th, 
+  .table-responsive-cards td, 
+  .table-responsive-cards tr { 
+    display: block; 
+  }
+  
+  .table-responsive-cards thead tr { 
+    position: absolute;
+    top: -9999px;
+    left: -9999px;
+  }
+  
+  .table-responsive-cards tr { border: 1px solid var(--border-color); margin-bottom: 1rem; border-radius: var(--border-radius-sm); padding: 0.5rem; background: var(--bg-secondary); }
+  
+  .table-responsive-cards td { 
+    border: none;
+    border-bottom: 1px solid var(--bg-tertiary); 
+    position: relative;
+    padding-left: 50%; 
+    text-align: right;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .table-responsive-cards td:before { 
+    content: attr(data-label);
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  .table-responsive-cards td:last-child {
+    border-bottom: 0;
+  }
 }
 
 .status-badge {

@@ -318,11 +318,11 @@ export async function sendLecturerReminders() {
 }
 
 /**
- * Notify all ADMINs (via Telegram) when a lecturer declines a lecture day.
+ * Notify all ADMINs (via Telegram) when a lecturer responds to a lecture day.
  * If ALL approved lecturers for that day have declined, escalate to a louder
  * alert suggesting that the admin cancel/reschedule.
  */
-export async function notifyAdminsOfLecturerDecline(availabilityId: string) {
+export async function notifyAdminsOfLecturerResponse(availabilityId: string) {
   const availability = await prisma.lecturerAvailability.findUnique({
     where: { id: availabilityId },
     include: {
@@ -371,6 +371,7 @@ export async function notifyAdminsOfLecturerDecline(availabilityId: string) {
   const dateLabel = formatArabicDate(day.date);
   const dayLink = APP_URL ? `\n${APP_URL}/lecture-days/${day.id}` : "";
   const reasonLine = availability.reason ? `\n📝 السبب: ${escapeHtml(availability.reason)}` : "";
+  const lecturerStatusText = availability.status === "CONFIRMED" ? "✅ أُكد الحضور" : "❌ اعتذر عن الحضور";
 
   let text: string;
   if (allDeclined) {
@@ -385,14 +386,15 @@ export async function notifyAdminsOfLecturerDecline(availabilityId: string) {
     ].filter(Boolean).join("\n");
   } else {
     text = [
-      `⚠️ <b>محاضر اعتذر عن يوم محاضرات</b>`,
+      `ℹ️ <b>تحديث حالة محاضر</b>`,
       ``,
       `👨‍🏫 المحاضر: ${escapeHtml(availability.lecturer.name)}`,
       `📅 اليوم: <b>${escapeHtml(dateLabel)}</b>`,
       day.label ? `(${escapeHtml(day.label)})` : "",
-      reasonLine,
+      `الرد: <b>${lecturerStatusText}</b>`,
+      availability.status === "DECLINED" ? reasonLine : "",
       ``,
-      `الحالة الآن:`,
+      `الحالة الإجمالية لليوم:`,
       `   ✓ ${confirmed} مؤكد · ✗ ${declined} معتذر · ⏳ ${pending} لم يرد${dayLink}`,
     ].filter(Boolean).join("\n");
   }
@@ -406,3 +408,80 @@ export async function getBotDeepLinkInfo() {
   const link = getTelegramDeepLink("___");
   return { configured: !!link };
 }
+
+/**
+ * Sends end-of-day reminders to lecturers to write their syllabus progress
+ * for today's lectures. Called from a cron job.
+ */
+export async function sendEndOfDayLecturerSyllabusReminder() {
+  const now = new Date();
+  const todayUtc = new Date(now);
+  todayUtc.setUTCHours(0, 0, 0, 0);
+
+  // Find today's published lecture day
+  const day = await prisma.lectureDay.findFirst({
+    where: { date: todayUtc, isPublished: true },
+    include: {
+      lectures: {
+        where: { lecturerId: { not: null } },
+        include: {
+          subject: true,
+          lecturer: true,
+        },
+      },
+    },
+  });
+
+  if (!day || day.lectures.length === 0) return { ok: true, sent: 0, note: "no lectures today" };
+
+  // Group lectures by lecturer
+  const lecturesByLecturer = new Map<string, typeof day.lectures>();
+  for (const l of day.lectures) {
+    if (!l.lecturerId) continue;
+    const list = lecturesByLecturer.get(l.lecturerId) || [];
+    list.push(l);
+    lecturesByLecturer.set(l.lecturerId, list);
+  }
+
+  // Get Telegram subscriptions for these lecturers
+  const subs = await prisma.telegramSubscription.findMany({
+    where: {
+      userType: "LECTURER",
+      refId: { in: Array.from(lecturesByLecturer.keys()) },
+    },
+  });
+  const subByLecturer = new Map(subs.map((s) => [s.refId, s.chatId]));
+
+  let sent = 0;
+  let failed = 0;
+
+  for (const [lecturerId, lectures] of lecturesByLecturer.entries()) {
+    const chatId = subByLecturer.get(lecturerId);
+    if (!chatId) continue;
+
+    // Build message
+    const lecturerName = lectures[0].lecturer!.name;
+    const dateLabel = formatArabicDate(day.date);
+
+    let text = [
+      `📝 <b>تذكير: تسجيل ما تم إنجازه في المنهج</b>`,
+      ``,
+      `أ. ${escapeHtml(lecturerName)}، شكرًا لجهودك اليوم (<b>${escapeHtml(dateLabel)}</b>).`,
+      `يرجى التكرم بتسجيل ما تم تغطيته في المنهج للطلاب في محاضرات اليوم:`,
+      ``,
+    ].join("\n");
+
+    for (const l of lectures) {
+      const link = APP_URL ? `${APP_URL}/me-lecturer/lectures/${l.id}` : "";
+      text += `\n📚 <b>${escapeHtml(l.subject.name)}</b>`;
+      text += `\nاضغط هنا للتسجيل: ${link}\n`;
+    }
+
+    const r = await broadcastTelegramMessage([chatId], text);
+    if (r.failed > 0) failed++;
+    else sent++;
+  }
+
+  return { ok: true, sent, failed };
+}
+

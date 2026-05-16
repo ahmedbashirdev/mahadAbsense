@@ -67,6 +67,22 @@ export default async function StudentHomePage() {
     orderBy: { date: "asc" },
   });
 
+  // Recent syllabus progress (past lectures with comments)
+  const recentProgress = await prisma.lecture.findMany({
+    where: {
+      subject: { yearId: student.yearId },
+      syllabusProgress: { not: null },
+      lectureDay: { date: { lt: today } }, // Only show progress for past days
+    },
+    include: {
+      subject: true,
+      lectureDay: true,
+      lecturer: { select: { name: true } },
+    },
+    orderBy: { lectureDay: { date: "desc" } },
+    take: 10,
+  });
+
   // Per-subject summary
   const summaryMap = new Map<string, SubjectSummary>();
   for (const r of records) {
@@ -176,7 +192,7 @@ export default async function StudentHomePage() {
                   {new Date(d.date).toLocaleDateString("ar-EG", { weekday: "long", day: "numeric", month: "long" })}
                   {d.label && <span style={{ fontWeight: 400, color: "var(--text-secondary)", marginInlineStart: "0.5rem" }}>· {d.label}</span>}
                 </div>
-                <div style={{ overflowX: "auto" }}>
+                <div className="table-responsive-cards" style={{ overflowX: "auto" }}>
                   <table>
                     <thead>
                       <tr>
@@ -188,14 +204,41 @@ export default async function StudentHomePage() {
                     <tbody>
                       {d.lectures.map((l) => (
                         <tr key={l.id}>
-                          <td dir="ltr" style={{ fontWeight: 600 }}>{l.startTime} – {l.endTime}</td>
-                          <td>{l.subject.name}</td>
-                          <td>{l.lecturer ? l.lecturer.name : <span style={{ color: "var(--text-tertiary)" }}>—</span>}</td>
+                          <td data-label="الوقت" dir="ltr" style={{ fontWeight: 600 }}>{l.startTime} – {l.endTime}</td>
+                          <td data-label="المادة">{l.subject.name}</td>
+                          <td data-label="المحاضر">{l.lecturer ? l.lecturer.name : <span style={{ color: "var(--text-tertiary)" }}>—</span>}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Syllabus Progress */}
+      {recentProgress.length > 0 && (
+        <section className="card animate-fade-in" style={{ animationDelay: "0.13s", marginBottom: "1.5rem" }}>
+          <h3 style={{ marginBottom: "1rem", fontWeight: 700 }}>📖 ما تم إنجازه في المنهج</h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+            {recentProgress.map((p) => (
+              <div key={p.id} style={{ padding: "1rem", backgroundColor: "var(--bg-secondary)", borderRadius: "var(--border-radius-sm)", border: "1px solid var(--border-color)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.5rem" }}>
+                  <div style={{ fontWeight: 700, color: "var(--accent-primary)" }}>{p.subject.name}</div>
+                  <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                    {new Date(p.lectureDay.date).toLocaleDateString("ar-EG", { day: "numeric", month: "long" })}
+                  </div>
+                </div>
+                <div style={{ fontSize: "0.9rem", color: "var(--text-primary)", whiteSpace: "pre-wrap", lineHeight: "1.6" }}>
+                  {p.syllabusProgress}
+                </div>
+                {p.lecturer && (
+                  <div style={{ marginTop: "0.75rem", fontSize: "0.8rem", color: "var(--text-tertiary)" }}>
+                    👨‍🏫 {p.lecturer.name}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -237,11 +280,13 @@ export default async function StudentHomePage() {
       <section className="card animate-fade-in" style={{ animationDelay: "0.35s", marginBottom: "1.5rem" }}>
         <h3 style={{ marginBottom: "1rem", fontWeight: 700 }}>ملخص المواد</h3>
         {summaries.length === 0 ? (
-          <p style={{ color: "var(--text-secondary)", textAlign: "center", padding: "1.5rem 0" }}>
-            لا توجد بيانات حضور بعد.
-          </p>
+          <div style={{ textAlign: "center", padding: "3rem 1rem", color: "var(--text-secondary)" }}>
+            <div style={{ fontSize: "3rem", marginBottom: "1rem", opacity: 0.8 }}>📊</div>
+            <p style={{ fontSize: "1.1rem", fontWeight: 500 }}>لا توجد بيانات حضور بعد</p>
+            <p style={{ fontSize: "0.9rem", marginTop: "0.5rem" }}>سيتم إضافة ملخص لغيابك ومشاركتك هنا بمجرد تسجيل أول محاضرة.</p>
+          </div>
         ) : (
-          <div style={{ overflowX: "auto" }}>
+          <div className="table-responsive-cards" style={{ overflowX: "auto" }}>
             <table>
               <thead>
                 <tr>
@@ -256,14 +301,14 @@ export default async function StudentHomePage() {
               <tbody>
                 {summaries.map((s) => (
                   <tr key={s.subjectId}>
-                    <td style={{ fontWeight: 600 }}>{s.subjectName}</td>
-                    <td style={{ textAlign: "center" }}>{s.total}</td>
-                    <td style={{ textAlign: "center", color: "var(--success)", fontWeight: 700 }}>{s.present}</td>
-                    <td style={{ textAlign: "center", color: s.absent >= threshold ? "var(--danger)" : "inherit", fontWeight: 700 }}>
+                    <td data-label="المادة" style={{ fontWeight: 600 }}>{s.subjectName}</td>
+                    <td data-label="محاضرات" style={{ textAlign: "center" }}>{s.total}</td>
+                    <td data-label="حضور" style={{ textAlign: "center", color: "var(--success)", fontWeight: 700 }}>{s.present}</td>
+                    <td data-label="غياب" style={{ textAlign: "center", color: s.absent >= threshold ? "var(--danger)" : "inherit", fontWeight: 700 }}>
                       {s.absent}
                     </td>
-                    <td style={{ textAlign: "center", color: "var(--warning)", fontWeight: 700 }}>{s.excused}</td>
-                    <td style={{ textAlign: "center", fontWeight: 700 }}>
+                    <td data-label="مستأذن" style={{ textAlign: "center", color: "var(--warning)", fontWeight: 700 }}>{s.excused}</td>
+                    <td data-label="النسبة" style={{ textAlign: "center", fontWeight: 700 }}>
                       <span
                         className="status-badge"
                         style={{
@@ -296,11 +341,12 @@ export default async function StudentHomePage() {
       <section className="card animate-fade-in" style={{ animationDelay: "0.4s" }}>
         <h3 style={{ marginBottom: "1rem", fontWeight: 700 }}>التاريخ التفصيلي</h3>
         {records.length === 0 ? (
-          <p style={{ color: "var(--text-secondary)", textAlign: "center", padding: "1.5rem 0" }}>
-            لم يتم تسجيل غيابك في أي محاضرة بعد.
-          </p>
+          <div style={{ textAlign: "center", padding: "3rem 1rem", color: "var(--text-secondary)" }}>
+            <div style={{ fontSize: "3rem", marginBottom: "1rem", opacity: 0.8 }}>📝</div>
+            <p style={{ fontSize: "1.1rem", fontWeight: 500 }}>لم يتم تسجيل غيابك في أي محاضرة بعد</p>
+          </div>
         ) : (
-          <div style={{ overflowX: "auto" }}>
+          <div className="table-responsive-cards" style={{ overflowX: "auto" }}>
             <table>
               <thead>
                 <tr>
@@ -312,9 +358,9 @@ export default async function StudentHomePage() {
               <tbody>
                 {records.map((r) => (
                   <tr key={r.id}>
-                    <td>{r.date.toLocaleDateString("ar-EG")}</td>
-                    <td style={{ fontWeight: 600 }}>{r.subject.name}</td>
-                    <td>
+                    <td data-label="التاريخ">{r.date.toLocaleDateString("ar-EG")}</td>
+                    <td data-label="المادة" style={{ fontWeight: 600 }}>{r.subject.name}</td>
+                    <td data-label="الحالة">
                       <span className={`status-badge status-${r.status.toLowerCase()}`}>
                         {r.status === "PRESENT" ? "حاضر" : r.status === "ABSENT" ? "غائب" : "مستأذن"}
                       </span>

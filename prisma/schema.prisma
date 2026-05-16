@@ -143,6 +143,8 @@ model Lecture {
   startTime    String
   endTime      String
   notes        String?
+  // Lecturer's comment on what was covered in the syllabus for students
+  syllabusProgress String?
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 }

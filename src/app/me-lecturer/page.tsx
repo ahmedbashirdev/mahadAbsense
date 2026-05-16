@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getLecturerSession } from "@/lib/auth";
 import ConnectTelegram from "@/components/ConnectTelegram";
-import { notifyAdminsOfLecturerDecline } from "@/lib/telegramBroadcast";
+import { notifyAdminsOfLecturerResponse } from "@/lib/telegramBroadcast";
 
 export const dynamic = "force-dynamic";
 
@@ -33,16 +33,11 @@ async function respondAvailability(formData: FormData) {
     },
   });
 
-  // When a lecturer declines, ping the admins so they know — and warn loudly
-  // if no one is available for that day anymore.
-  if (status === "DECLINED") {
-    // Fire-and-forget would be cleaner, but we await so any Telegram error is
-    // captured in the same request (logged to Vercel's function logs).
-    try {
-      await notifyAdminsOfLecturerDecline(availabilityId);
-    } catch (e) {
-      console.error("notifyAdminsOfLecturerDecline failed:", e);
-    }
+  // Notify admins when a lecturer confirms or declines.
+  try {
+    await notifyAdminsOfLecturerResponse(availabilityId);
+  } catch (e) {
+    console.error("notifyAdminsOfLecturerResponse failed:", e);
   }
 
   revalidatePath("/me-lecturer");
@@ -129,9 +124,11 @@ export default async function MeLecturerPage() {
       <section className="card animate-fade-in" style={{ animationDelay: "0.1s", marginBottom: "1.5rem" }}>
         <h3 style={{ marginBottom: "1rem", fontWeight: 700 }}>الأيام المقبلة</h3>
         {upcoming.length === 0 ? (
-          <p style={{ color: "var(--text-secondary)", textAlign: "center", padding: "1.5rem 0" }}>
-            لا يوجد أيام مقررة الآن. الإدارة هتضيف أيام المحاضرات أسبوعيًا.
-          </p>
+          <div style={{ textAlign: "center", padding: "3rem 1rem", color: "var(--text-secondary)" }}>
+            <div style={{ fontSize: "3rem", marginBottom: "1rem", opacity: 0.8 }}>📅</div>
+            <p style={{ fontSize: "1.1rem", fontWeight: 500 }}>لا يوجد أيام مقررة الآن</p>
+            <p style={{ fontSize: "0.9rem", marginTop: "0.5rem" }}>الإدارة ستقوم بإضافة أيام المحاضرات أسبوعياً.</p>
+          </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
             {upcoming.map((a) => {
@@ -188,7 +185,7 @@ export default async function MeLecturerPage() {
                       {a.status !== "DECLINED" && (
                         <details style={{ flex: 1 }}>
                           <summary
-                            className="btn btn-danger"
+                            className="btn btn-outline-danger"
                             style={{ cursor: "pointer", justifyContent: "center", padding: "0.6rem", width: "100%" }}
                           >
                             {a.status === "CONFIRMED" ? "تراجع — اعتذار عن الحضور" : "اعتذار عن الحضور"}
@@ -224,7 +221,7 @@ export default async function MeLecturerPage() {
       {past.length > 0 && (
         <section className="card animate-fade-in" style={{ animationDelay: "0.2s" }}>
           <h3 style={{ marginBottom: "1rem", fontWeight: 700 }}>الأيام السابقة</h3>
-          <div style={{ overflowX: "auto" }}>
+          <div className="table-responsive-cards" style={{ overflowX: "auto" }}>
             <table>
               <thead>
                 <tr>
@@ -235,10 +232,10 @@ export default async function MeLecturerPage() {
               <tbody>
                 {past.slice(0, 20).map((a) => (
                   <tr key={a.id}>
-                    <td style={{ fontWeight: 600 }}>
+                    <td data-label="التاريخ" style={{ fontWeight: 600 }}>
                       {new Date(a.lectureDay.date).toLocaleDateString("ar-EG", { weekday: "long", day: "numeric", month: "long" })}
                     </td>
-                    <td>
+                    <td data-label="الحالة">
                       {a.status === "CONFIRMED" && <span className="status-badge status-present">✓ مؤكد</span>}
                       {a.status === "DECLINED" && <span className="status-badge status-absent">✗ معتذر</span>}
                       {a.status === "PENDING" && <span className="status-badge status-excused">— لم يرد</span>}
