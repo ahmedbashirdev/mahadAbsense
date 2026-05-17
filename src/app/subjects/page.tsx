@@ -4,6 +4,10 @@ import { logActivity } from "@/lib/logger";
 import { SubmitWithConfirm } from "@/components/SubmitWithConfirm";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import Modal from "@/components/Modal";
+import ClientForm from "@/components/ClientForm";
+import SubmitButton from "@/components/SubmitButton";
+import { Plus, Edit } from "lucide-react";
 
 export const dynamic = 'force-dynamic';
 
@@ -63,9 +67,10 @@ async function deleteSubject(formData: FormData) {
   revalidatePath("/subjects");
 }
 
-export default async function SubjectsPage({ searchParams }: { searchParams: Promise<{ edit?: string }> }) {
+export default async function SubjectsPage({ searchParams }: { searchParams: Promise<{ edit?: string, new?: string }> }) {
   const sp = await searchParams;
   const editId = sp.edit;
+  const isNew = sp.new === "1";
   let subjectToEdit = null;
   if (editId) {
     subjectToEdit = await prisma.subject.findUnique({ where: { id: editId } });
@@ -84,127 +89,132 @@ export default async function SubjectsPage({ searchParams }: { searchParams: Pro
           <h1 className="page-title">المواد الدراسية</h1>
           <p className="page-subtitle">إدارة المواد وربطها بالسنوات</p>
         </div>
+        <Link href="/subjects?new=1" className="btn btn-primary">
+          <Plus size={18} /> إضافة مادة
+        </Link>
       </header>
 
-      <div className="two-col-grid">
-        <section className="card animate-fade-in" style={{ height: 'fit-content' }}>
-          <h3 style={{ marginBottom: '1.5rem', fontWeight: 700 }}>
-             {subjectToEdit ? "تعديل المادة" : "إضافة مادة جديدة"}
-          </h3>
-          {subjectToEdit ? (
-            <form action={updateSubject} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <input type="hidden" name="id" value={subjectToEdit.id} />
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>اسم المادة</label>
-                <input type="text" name="name" className="input-field" defaultValue={subjectToEdit.name} required />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>السنة الدراسية</label>
-                <select name="yearId" className="input-field" defaultValue={subjectToEdit.yearId} required>
-                  <option value="">اختر السنة...</option>
-                  {years.map(y => (
-                    <option key={y.id} value={y.id}>{y.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>الفصل الدراسي</label>
-                <select name="termType" className="input-field" defaultValue={subjectToEdit.termType} required>
-                  <option value="ONE_TERM">ترم واحد (مستقل)</option>
-                  <option value="TWO_TERMS">ترمين (ممتدة)</option>
-                </select>
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>اسم الكتاب (اختياري)</label>
-                <input type="text" name="bookName" className="input-field" defaultValue={subjectToEdit.bookName || ""} placeholder="مثال: التوحيد للشيخ الفوزان" />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>رقم الصفحة المستهدفة (اختياري)</label>
-                <input type="number" name="targetPage" className="input-field" defaultValue={subjectToEdit.targetPage || ""} placeholder="مثال: 150" />
-              </div>
-              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>حفظ التعديلات</button>
-                <Link href="/subjects" className="btn btn-danger" style={{ flex: 1, textAlign: 'center', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>إلغاء</Link>
-              </div>
-            </form>
-          ) : (
-            <form action={addSubject} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>اسم المادة</label>
-                <input type="text" name="name" className="input-field" required />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>السنة الدراسية</label>
-                <select name="yearId" className="input-field" required>
-                  <option value="">اختر السنة...</option>
-                  {years.map(y => (
-                    <option key={y.id} value={y.id}>{y.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>الفصل الدراسي</label>
-                <select name="termType" className="input-field" required>
-                  <option value="ONE_TERM">ترم واحد (مستقل)</option>
-                  <option value="TWO_TERMS">ترمين (ممتدة)</option>
-                </select>
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>اسم الكتاب (اختياري)</label>
-                <input type="text" name="bookName" className="input-field" placeholder="مثال: التوحيد للشيخ الفوزان" />
-              </div>
-              <div>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>رقم الصفحة المستهدفة (اختياري)</label>
-                <input type="number" name="targetPage" className="input-field" placeholder="مثال: 150" />
-              </div>
-              <button type="submit" className="btn btn-primary" style={{ marginTop: '0.5rem' }}>
-                إضافة المادة
-              </button>
-            </form>
-          )}
-        </section>
-
-        <section className="card animate-fade-in" style={{ animationDelay: '0.2s' }}>
-          <h3 style={{ marginBottom: '1.5rem', fontWeight: 700 }}>قائمة المواد</h3>
-          {subjects.length > 0 ? (
-            <div style={{ overflowX: 'auto' }}>
-              <table>
-                <thead>
-                  <tr>
-                    <th>المادة</th>
-                    <th>السنة الدراسية</th>
-                    <th>الكتاب</th>
-                    <th>الهدف</th>
-                    <th>إجراءات</th>
+      <section className="card animate-fade-in" style={{ animationDelay: '0.1s' }}>
+        <h3 style={{ marginBottom: '1.5rem', fontWeight: 700 }}>قائمة المواد</h3>
+        {subjects.length > 0 ? (
+          <div style={{ overflowX: 'auto' }}>
+            <table>
+              <thead>
+                <tr>
+                  <th>المادة</th>
+                  <th>السنة الدراسية</th>
+                  <th>الكتاب</th>
+                  <th>الهدف</th>
+                  <th>إجراءات</th>
+                </tr>
+              </thead>
+              <tbody>
+                {subjects.map(subject => (
+                  <tr key={subject.id}>
+                    <td data-label="المادة" style={{ fontWeight: 600 }}>{subject.name}</td>
+                    <td data-label="السنة الدراسية">{subject.academicYear.name}</td>
+                    <td data-label="الكتاب">{subject.bookName || <span style={{ color: "var(--text-tertiary)" }}>—</span>}</td>
+                    <td data-label="الهدف">{subject.targetPage ? `ص ${subject.targetPage}` : <span style={{ color: "var(--text-tertiary)" }}>—</span>}</td>
+                    <td data-label="إجراءات">
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <Link href={`/subjects?edit=${subject.id}`} className="btn btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>
+                          <Edit size={14} /> تعديل
+                        </Link>
+                        <SubmitWithConfirm action={deleteSubject} id={subject.id} confirmMessage={`هل أنت متأكد من حذف ${subject.name}؟`} />
+                      </div>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {subjects.map(subject => (
-                    <tr key={subject.id}>
-                      <td data-label="المادة" style={{ fontWeight: 600 }}>{subject.name}</td>
-                      <td data-label="السنة الدراسية">{subject.academicYear.name}</td>
-                      <td data-label="الكتاب">{subject.bookName || <span style={{ color: "var(--text-tertiary)" }}>—</span>}</td>
-                      <td data-label="الهدف">{subject.targetPage ? `ص ${subject.targetPage}` : <span style={{ color: "var(--text-tertiary)" }}>—</span>}</td>
-                      <td data-label="إجراءات">
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          <Link href={`/subjects?edit=${subject.id}`} className="btn" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)', padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>
-                            تعديل
-                          </Link>
-                          <SubmitWithConfirm action={deleteSubject} id={subject.id} confirmMessage={`هل أنت متأكد من حذف ${subject.name}؟`} />
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '2rem 0' }}>
+            لم يتم إضافة أي مواد بعد.
+          </p>
+        )}
+      </section>
+
+      {/* Edit Modal */}
+      {subjectToEdit && (
+        <Modal title="تعديل المادة" onCloseRoute="/subjects">
+          <ClientForm action={updateSubject} successMessage="تم تعديل المادة بنجاح" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <input type="hidden" name="id" value={subjectToEdit.id} />
+            <div>
+              <label className="field-label">اسم المادة</label>
+              <input type="text" name="name" className="input-field" defaultValue={subjectToEdit.name} required />
             </div>
-          ) : (
-            <p style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '2rem 0' }}>
-              لم يتم إضافة أي مواد بعد.
-            </p>
-          )}
-        </section>
-      </div>
+            <div>
+              <label className="field-label">السنة الدراسية</label>
+              <select name="yearId" className="input-field" defaultValue={subjectToEdit.yearId} required>
+                <option value="">اختر السنة...</option>
+                {years.map(y => (
+                  <option key={y.id} value={y.id}>{y.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="field-label">الفصل الدراسي</label>
+              <select name="termType" className="input-field" defaultValue={subjectToEdit.termType} required>
+                <option value="ONE_TERM">ترم واحد (مستقل)</option>
+                <option value="TWO_TERMS">ترمين (ممتدة)</option>
+              </select>
+            </div>
+            <div>
+              <label className="field-label">اسم الكتاب (اختياري)</label>
+              <input type="text" name="bookName" className="input-field" defaultValue={subjectToEdit.bookName || ""} placeholder="مثال: التوحيد للشيخ الفوزان" />
+            </div>
+            <div>
+              <label className="field-label">رقم الصفحة المستهدفة (اختياري)</label>
+              <input type="number" name="targetPage" className="input-field" defaultValue={subjectToEdit.targetPage || ""} placeholder="مثال: 150" />
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+              <SubmitButton defaultText="حفظ التعديلات" style={{ flex: 1 }} />
+              <Link href="/subjects" className="btn btn-secondary" style={{ flex: 1, textAlign: 'center' }}>إلغاء</Link>
+            </div>
+          </ClientForm>
+        </Modal>
+      )}
+
+      {/* Add Modal */}
+      {isNew && (
+        <Modal title="إضافة مادة جديدة" onCloseRoute="/subjects">
+          <ClientForm action={addSubject} successMessage="تم إضافة المادة بنجاح" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div>
+              <label className="field-label">اسم المادة</label>
+              <input type="text" name="name" className="input-field" required />
+            </div>
+            <div>
+              <label className="field-label">السنة الدراسية</label>
+              <select name="yearId" className="input-field" required>
+                <option value="">اختر السنة...</option>
+                {years.map(y => (
+                  <option key={y.id} value={y.id}>{y.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="field-label">الفصل الدراسي</label>
+              <select name="termType" className="input-field" required>
+                <option value="ONE_TERM">ترم واحد (مستقل)</option>
+                <option value="TWO_TERMS">ترمين (ممتدة)</option>
+              </select>
+            </div>
+            <div>
+              <label className="field-label">اسم الكتاب (اختياري)</label>
+              <input type="text" name="bookName" className="input-field" placeholder="مثال: التوحيد للشيخ الفوزان" />
+            </div>
+            <div>
+              <label className="field-label">رقم الصفحة المستهدفة (اختياري)</label>
+              <input type="number" name="targetPage" className="input-field" placeholder="مثال: 150" />
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+              <SubmitButton defaultText="إضافة المادة" style={{ flex: 1 }} />
+              <Link href="/subjects" className="btn btn-secondary" style={{ flex: 1, textAlign: 'center' }}>إلغاء</Link>
+            </div>
+          </ClientForm>
+        </Modal>
+      )}
     </>
   );
 }

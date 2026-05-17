@@ -4,9 +4,13 @@ import { useEffect, useState } from "react";
 export default function AppShell({
   sidebar,
   children,
+  userType,
+  bottomNav,
 }: {
   sidebar: React.ReactNode;
   children: React.ReactNode;
+  userType?: string;
+  bottomNav?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -27,7 +31,7 @@ export default function AppShell({
   };
 
   return (
-    <>
+    <div className={userType === "STUDENT" ? "student-layout" : ""}>
       {/* Mobile top bar (only shown on small screens via CSS) */}
       {sidebar && (
         <div className="mobile-topbar">
@@ -66,7 +70,13 @@ export default function AppShell({
         <main className="main-content">
           {children}
         </main>
+        
+        {userType === "STUDENT" && bottomNav && (
+          <div className="mobile-bottom-nav student-visible">
+            {bottomNav}
+          </div>
+        )}
       </div>
-    </>
+    </div>
   );
 }

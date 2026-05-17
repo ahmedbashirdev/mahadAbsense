@@ -5,6 +5,7 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import LogoutButton from "./LogoutButton";
 import AppShell from "@/components/AppShell";
+import MobileBottomNav from "@/components/MobileBottomNav";
 import { Toaster } from "sonner";
 
 export const metadata: Metadata = {
@@ -110,7 +111,11 @@ export default async function RootLayout({
   return (
     <html lang="ar" dir="rtl">
       <body>
-        <AppShell sidebar={sidebarContent}>
+        <AppShell 
+          sidebar={sidebarContent} 
+          userType={session?.type}
+          bottomNav={session?.type === "STUDENT" ? <MobileBottomNav /> : undefined}
+        >
           {children}
         </AppShell>
         <Toaster position="top-center" richColors theme="light" />
