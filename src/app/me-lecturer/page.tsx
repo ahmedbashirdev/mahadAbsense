@@ -273,6 +273,9 @@ export default async function MeLecturerPage() {
               </tbody>
             </table>
           </div>
+        </section>
+      )}
+
       {/* Syllabus Tracking for Subjects */}
       {lecturer.subjects.length > 0 && (
         <section className="card animate-fade-in" style={{ animationDelay: "0.25s", marginBottom: "1.5rem" }}>
