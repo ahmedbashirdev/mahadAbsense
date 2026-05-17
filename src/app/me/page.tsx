@@ -4,6 +4,11 @@ import { prisma } from "@/lib/prisma";
 import { getStudentSession } from "@/lib/auth";
 import { getAbsenceWarningThreshold } from "@/lib/settings";
 import ConnectTelegram from "@/components/ConnectTelegram";
+import { 
+  QrCode, AlertTriangle, CalendarDays, BookOpen, Book, 
+  MessageSquareText, BarChart3, History, CheckCircle2, 
+  XCircle, Clock, GraduationCap 
+} from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -126,7 +131,7 @@ export default async function StudentHomePage() {
           <p className="page-subtitle">ملخص حضورك وغيابك ومحاضراتك</p>
         </div>
         <Link href="/me/checkin" className="btn btn-primary" style={{ padding: "0.75rem 1.25rem" }}>
-          📷 تسجيل حضور بـ QR
+          <QrCode size={18} /> تسجيل حضور بـ QR
         </Link>
       </header>
 
@@ -168,8 +173,8 @@ export default async function StudentHomePage() {
             backgroundColor: "rgba(239, 68, 68, 0.06)",
           }}
         >
-          <h3 style={{ color: "var(--danger)", fontWeight: 700, marginBottom: "0.5rem" }}>
-            ⚠️ تنبيه — اقتربت من حد الإنذار
+          <h3 style={{ color: "var(--danger)", fontWeight: 700, marginBottom: "0.5rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <AlertTriangle size={20} /> تنبيه — اقتربت من حد الإنذار
           </h3>
           <p style={{ color: "var(--text-primary)", marginBottom: "0.75rem" }}>
             وصلت إلى {threshold} غياب أو أكثر في المواد التالية. الرجاء التواصل مع الإدارة:
@@ -187,7 +192,9 @@ export default async function StudentHomePage() {
       {/* Upcoming schedule */}
       {upcomingDays.length > 0 && (
         <section className="card animate-fade-in" style={{ animationDelay: "0.12s", marginBottom: "1.5rem" }}>
-          <h3 style={{ marginBottom: "1rem", fontWeight: 700 }}>📅 جدول المحاضرات القادمة</h3>
+          <h3 style={{ marginBottom: "1rem", fontWeight: 700, display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <CalendarDays size={20} className="text-accent" /> جدول المحاضرات القادمة
+          </h3>
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
             {upcomingDays.map((d) => (
               <div key={d.id}>
@@ -224,7 +231,9 @@ export default async function StudentHomePage() {
       {/* Syllabus Progress */}
       {subjectsProgress.length > 0 && (
         <section className="card animate-fade-in" style={{ animationDelay: "0.13s", marginBottom: "1.5rem" }}>
-          <h3 style={{ marginBottom: "1rem", fontWeight: 700 }}>📖 متابعة المناهج</h3>
+          <h3 style={{ marginBottom: "1rem", fontWeight: 700, display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <BookOpen size={20} className="text-accent" /> متابعة المناهج
+          </h3>
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
             {subjectsProgress.map((sub) => {
               const latestLec = sub.lectures[0];
@@ -237,8 +246,8 @@ export default async function StudentHomePage() {
                   <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem", marginBottom: "0.5rem" }}>
                     <div style={{ fontWeight: 700, color: "var(--accent-primary)" }}>{sub.name}</div>
                     {sub.bookName && (
-                      <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", backgroundColor: "var(--bg-tertiary)", padding: "0.2rem 0.5rem", borderRadius: "999px" }}>
-                        📚 {sub.bookName}
+                      <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", backgroundColor: "var(--bg-tertiary)", padding: "0.2rem 0.6rem", borderRadius: "999px", display: "flex", alignItems: "center", gap: "0.3rem" }}>
+                        <Book size={14} /> {sub.bookName}
                       </div>
                     )}
                   </div>
@@ -265,7 +274,9 @@ export default async function StudentHomePage() {
                   {latestLec && latestLec.syllabusProgress && (
                     <div style={{ marginTop: "1rem", padding: "0.75rem", backgroundColor: "var(--bg-tertiary)", borderRadius: "var(--border-radius-sm)", borderInlineStart: "3px solid var(--accent-primary)" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.25rem", fontSize: "0.8rem", color: "var(--text-secondary)" }}>
-                        <span>أحدث تعليق ({new Date(latestLec.lectureDay.date).toLocaleDateString("ar-EG", { day: "numeric", month: "long" })})</span>
+                        <span style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
+                          <MessageSquareText size={14} /> أحدث تعليق ({new Date(latestLec.lectureDay.date).toLocaleDateString("ar-EG", { day: "numeric", month: "long" })})
+                        </span>
                         {latestLec.lecturer && <span>👨‍🏫 {latestLec.lecturer.name}</span>}
                       </div>
                       <div style={{ fontSize: "0.9rem", color: "var(--text-primary)", whiteSpace: "pre-wrap", lineHeight: "1.6" }}>
@@ -296,21 +307,29 @@ export default async function StudentHomePage() {
         }}
       >
         <div className="card animate-fade-in" style={{ animationDelay: "0.15s" }}>
-          <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>إجمالي المحاضرات المسجلة</div>
+          <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "0.3rem" }}>
+            <GraduationCap size={16} /> إجمالي المحاضرات المسجلة
+          </div>
           <div style={{ fontSize: "2rem", fontWeight: 800, color: "var(--accent-primary)" }}>{records.length}</div>
         </div>
         <div className="card animate-fade-in" style={{ animationDelay: "0.2s" }}>
-          <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>عدد الحضور</div>
+          <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "0.3rem" }}>
+            <CheckCircle2 size={16} /> عدد الحضور
+          </div>
           <div style={{ fontSize: "2rem", fontWeight: 800, color: "var(--success)" }}>
             {records.filter((r) => r.status === "PRESENT").length}
           </div>
         </div>
         <div className="card animate-fade-in" style={{ animationDelay: "0.25s" }}>
-          <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>عدد الغياب</div>
+          <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "0.3rem" }}>
+            <XCircle size={16} /> عدد الغياب
+          </div>
           <div style={{ fontSize: "2rem", fontWeight: 800, color: "var(--danger)" }}>{totalAbsences}</div>
         </div>
         <div className="card animate-fade-in" style={{ animationDelay: "0.3s" }}>
-          <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>عدد المستأذن</div>
+          <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: "0.3rem" }}>
+            <Clock size={16} /> عدد المستأذن
+          </div>
           <div style={{ fontSize: "2rem", fontWeight: 800, color: "var(--warning)" }}>
             {records.filter((r) => r.status === "EXCUSED").length}
           </div>
@@ -322,7 +341,7 @@ export default async function StudentHomePage() {
         <h3 style={{ marginBottom: "1rem", fontWeight: 700 }}>ملخص المواد</h3>
         {summaries.length === 0 ? (
           <div style={{ textAlign: "center", padding: "3rem 1rem", color: "var(--text-secondary)" }}>
-            <div style={{ fontSize: "3rem", marginBottom: "1rem", opacity: 0.8 }}>📊</div>
+            <BarChart3 size={48} style={{ margin: "0 auto 1rem auto", opacity: 0.6 }} />
             <p style={{ fontSize: "1.1rem", fontWeight: 500 }}>لا توجد بيانات حضور بعد</p>
             <p style={{ fontSize: "0.9rem", marginTop: "0.5rem" }}>سيتم إضافة ملخص لغيابك ومشاركتك هنا بمجرد تسجيل أول محاضرة.</p>
           </div>
@@ -383,7 +402,7 @@ export default async function StudentHomePage() {
         <h3 style={{ marginBottom: "1rem", fontWeight: 700 }}>التاريخ التفصيلي</h3>
         {records.length === 0 ? (
           <div style={{ textAlign: "center", padding: "3rem 1rem", color: "var(--text-secondary)" }}>
-            <div style={{ fontSize: "3rem", marginBottom: "1rem", opacity: 0.8 }}>📝</div>
+            <History size={48} style={{ margin: "0 auto 1rem auto", opacity: 0.6 }} />
             <p style={{ fontSize: "1.1rem", fontWeight: 500 }}>لم يتم تسجيل غيابك في أي محاضرة بعد</p>
           </div>
         ) : (

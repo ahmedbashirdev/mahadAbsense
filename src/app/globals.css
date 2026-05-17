@@ -1,16 +1,16 @@
 @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap');
 
 :root {
-  --bg-primary: #f4f6f9;
+  --bg-primary: #f8fafc;
   --bg-secondary: #ffffff;
-  --bg-tertiary: #f0f2f5;
+  --bg-tertiary: #f1f5f9;
 
-  --text-primary: #1e293b;
-  --text-secondary: #64748b;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
   --text-tertiary: #94a3b8;
 
-  --accent-primary: #3b82f6;
-  --accent-primary-hover: #2563eb;
+  --accent-primary: #4f46e5;
+  --accent-primary-hover: #4338ca;
 
   --success: #10b981;
   --danger: #ef4444;
@@ -84,13 +84,13 @@ body {
 .btn-primary {
   background-color: var(--accent-primary);
   color: white;
-  box-shadow: 0 4px 14px 0 rgba(59, 130, 246, 0.39);
+  box-shadow: 0 4px 14px 0 rgba(79, 70, 229, 0.39);
 }
 
 .btn-primary:hover {
   background-color: var(--accent-primary-hover);
   transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.23);
+  box-shadow: 0 6px 20px rgba(79, 70, 229, 0.23);
 }
 
 .btn-primary:disabled {

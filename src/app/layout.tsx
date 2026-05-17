@@ -5,6 +5,7 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import LogoutButton from "./LogoutButton";
 import AppShell from "@/components/AppShell";
+import { Toaster } from "sonner";
 
 export const metadata: Metadata = {
   title: "نظام إدارة المعهد العلمي",
@@ -112,6 +113,7 @@ export default async function RootLayout({
         <AppShell sidebar={sidebarContent}>
           {children}
         </AppShell>
+        <Toaster position="top-center" richColors theme="light" />
       </body>
     </html>
   );

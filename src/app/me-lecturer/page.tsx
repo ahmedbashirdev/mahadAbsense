@@ -4,6 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { getLecturerSession } from "@/lib/auth";
 import ConnectTelegram from "@/components/ConnectTelegram";
 import { notifyAdminsOfLecturerResponse } from "@/lib/telegramBroadcast";
+import ClientForm from "@/components/ClientForm";
+import SubmitButton from "@/components/SubmitButton";
+import { BookOpen, Calendar, CheckCircle2, XCircle, Clock, Save } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -202,13 +205,11 @@ export default async function MeLecturerPage() {
                     mistake and need to switch to decline, or change their mind
                     back to "متاح". The button labels reflect the current state.
                   */}
-                  <form action={respondAvailability} style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                  <ClientForm action={respondAvailability} successMessage="تم إرسال ردك بنجاح" style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
                     <input type="hidden" name="availabilityId" value={a.id} />
                     <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
                       {a.status !== "CONFIRMED" && (
-                        <button name="status" value="CONFIRMED" type="submit" className="btn btn-primary" style={{ flex: 1, padding: "0.6rem" }}>
-                          ✓ أؤكد الحضور
-                        </button>
+                        <SubmitButton name="status" value="CONFIRMED" defaultText="✓ أؤكد الحضور" pendingText="جاري التأكيد..." variant="primary" style={{ flex: 1, padding: "0.6rem" }} />
                       )}
                       {a.status !== "DECLINED" && (
                         <details style={{ flex: 1 }}>
@@ -226,19 +227,15 @@ export default async function MeLecturerPage() {
                               rows={2}
                               style={{ resize: "vertical" }}
                             />
-                            <button name="status" value="DECLINED" type="submit" className="btn btn-danger">
-                              تأكيد الاعتذار
-                            </button>
+                            <SubmitButton name="status" value="DECLINED" defaultText="تأكيد الاعتذار" pendingText="جاري الإرسال..." variant="danger" />
                           </div>
                         </details>
                       )}
                       {a.status === "DECLINED" && (
-                        <button name="status" value="CONFIRMED" type="submit" className="btn btn-primary" style={{ flex: 1, padding: "0.6rem" }}>
-                          ↩ تراجع — أكد الحضور
-                        </button>
+                        <SubmitButton name="status" value="CONFIRMED" defaultText="↩ تراجع — أكد الحضور" pendingText="جاري التأكيد..." variant="primary" style={{ flex: 1, padding: "0.6rem" }} />
                       )}
                     </div>
-                  </form>
+                  </ClientForm>
                 </div>
               );
             })}
@@ -326,7 +323,7 @@ export default async function MeLecturerPage() {
                     </div>
                   )}
 
-                  <form action={updateSubjectProgress} style={{ display: "flex", gap: "0.5rem", alignItems: "flex-end" }}>
+                  <ClientForm action={updateSubjectProgress} successMessage="تم حفظ التقدم بنجاح" style={{ display: "flex", gap: "0.5rem", alignItems: "flex-end" }}>
                     <input type="hidden" name="subjectId" value={sub.id} />
                     <div style={{ flex: 1 }}>
                       <label style={{ display: "block", fontSize: "0.85rem", marginBottom: "0.4rem", color: "var(--text-secondary)" }}>رقم الصفحة الحالية:</label>
@@ -340,10 +337,8 @@ export default async function MeLecturerPage() {
                         style={{ padding: "0.6rem" }}
                       />
                     </div>
-                    <button type="submit" className="btn btn-primary" style={{ padding: "0.6rem 1rem", height: "fit-content" }}>
-                      حفظ التقدم
-                    </button>
-                  </form>
+                    <SubmitButton defaultText="حفظ التقدم" pendingText="حفظ..." variant="primary" style={{ padding: "0.6rem 1rem", height: "fit-content" }} />
+                  </ClientForm>
                 </div>
               );
             })}
