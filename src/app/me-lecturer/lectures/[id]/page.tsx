@@ -29,6 +29,13 @@ async function saveProgress(formData: FormData) {
     data: { syllabusProgress: progress, reachedPage },
   });
 
+  if (reachedPage !== null) {
+    await prisma.subject.update({
+      where: { id: lecture.subjectId },
+      data: { reachedPage }
+    });
+  }
+
   revalidatePath(`/me-lecturer/lectures/${lectureId}`);
   revalidatePath("/me"); // Revalidate students page so they see it
 }

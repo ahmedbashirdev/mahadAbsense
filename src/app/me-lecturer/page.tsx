@@ -43,6 +43,34 @@ async function respondAvailability(formData: FormData) {
   revalidatePath("/me-lecturer");
 }
 
+async function updateSubjectProgress(formData: FormData) {
+  "use server";
+  const session = await getLecturerSession();
+  if (!session) return;
+
+  const subjectId = formData.get("subjectId") as string;
+  const reachedPageStr = formData.get("reachedPage") as string;
+  const reachedPage = reachedPageStr ? parseInt(reachedPageStr, 10) : null;
+
+  if (!subjectId || reachedPage === null) return;
+
+  // Verify the lecturer teaches this subject
+  const lecturer = await prisma.lecturer.findUnique({
+    where: { id: session.lecturerId },
+    include: { subjects: { where: { id: subjectId } } }
+  });
+
+  if (!lecturer || lecturer.subjects.length === 0) return;
+
+  await prisma.subject.update({
+    where: { id: subjectId },
+    data: { reachedPage }
+  });
+
+  revalidatePath("/me-lecturer");
+  revalidatePath("/me");
+}
+
 export default async function MeLecturerPage() {
   const session = await getLecturerSession();
   if (!session) redirect("/login");
@@ -244,6 +272,78 @@ export default async function MeLecturerPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+      {/* Syllabus Tracking for Subjects */}
+      {lecturer.subjects.length > 0 && (
+        <section className="card animate-fade-in" style={{ animationDelay: "0.25s", marginBottom: "1.5rem" }}>
+          <h3 style={{ marginBottom: "1rem", fontWeight: 700 }}>📖 متابعة المناهج</h3>
+          <p style={{ color: "var(--text-secondary)", marginBottom: "1rem", fontSize: "0.9rem" }}>
+            يمكنك تحديث رقم الصفحة التي وصلت إليها في كل مادة في أي وقت، وسيظهر هذا التقدم للطلاب مباشرة.
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+            {lecturer.subjects.map((sub) => {
+              const reached = sub.reachedPage || 0;
+              const target = sub.targetPage || 0;
+              const percent = target > 0 ? Math.min(100, Math.round((reached / target) * 100)) : 0;
+
+              return (
+                <div key={sub.id} style={{ padding: "1rem", backgroundColor: "var(--bg-secondary)", borderRadius: "var(--border-radius-sm)", border: "1px solid var(--border-color)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem", marginBottom: "1rem" }}>
+                    <div>
+                      <div style={{ fontWeight: 700, color: "var(--accent-primary)", fontSize: "1.1rem" }}>{sub.name}</div>
+                      <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>السنة: {sub.academicYear.name}</div>
+                    </div>
+                    {sub.bookName && (
+                      <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", backgroundColor: "var(--bg-tertiary)", padding: "0.3rem 0.6rem", borderRadius: "999px", height: "fit-content" }}>
+                        📚 {sub.bookName}
+                      </div>
+                    )}
+                  </div>
+
+                  {sub.targetPage ? (
+                    <div style={{ marginBottom: "1.5rem" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.4rem", fontSize: "0.85rem" }}>
+                        <span>نسبة الإنجاز (الهدف: {target} صفحة)</span>
+                        <span style={{ fontWeight: 700 }}>{percent}%</span>
+                      </div>
+                      <div style={{ width: "100%", height: "8px", backgroundColor: "var(--bg-tertiary)", borderRadius: "999px", overflow: "hidden" }}>
+                        <div 
+                          style={{ 
+                            height: "100%", 
+                            backgroundColor: percent >= 100 ? "var(--success)" : "var(--accent-primary)", 
+                            width: `${percent}%`,
+                            transition: "width 1s ease"
+                          }} 
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: "0.85rem", color: "var(--warning)", marginBottom: "1rem", padding: "0.5rem", backgroundColor: "rgba(245, 158, 11, 0.1)", borderRadius: "var(--border-radius-sm)" }}>
+                      ⚠️ الإدارة لم تحدد صفحة مستهدفة لهذه المادة بعد، لذلك لا يظهر شريط تقدم.
+                    </div>
+                  )}
+
+                  <form action={updateSubjectProgress} style={{ display: "flex", gap: "0.5rem", alignItems: "flex-end" }}>
+                    <input type="hidden" name="subjectId" value={sub.id} />
+                    <div style={{ flex: 1 }}>
+                      <label style={{ display: "block", fontSize: "0.85rem", marginBottom: "0.4rem", color: "var(--text-secondary)" }}>رقم الصفحة الحالية:</label>
+                      <input 
+                        type="number" 
+                        name="reachedPage" 
+                        className="input-field" 
+                        defaultValue={sub.reachedPage || ""} 
+                        placeholder={sub.targetPage ? `الهدف: ${sub.targetPage}` : "الصفحة الحالية"} 
+                        required
+                        style={{ padding: "0.6rem" }}
+                      />
+                    </div>
+                    <button type="submit" className="btn btn-primary" style={{ padding: "0.6rem 1rem", height: "fit-content" }}>
+                      حفظ التقدم
+                    </button>
+                  </form>
+                </div>
+              );
+            })}
           </div>
         </section>
       )}

@@ -228,7 +228,7 @@ export default async function StudentHomePage() {
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
             {subjectsProgress.map((sub) => {
               const latestLec = sub.lectures[0];
-              const reached = latestLec?.reachedPage || 0;
+              const reached = sub.reachedPage || 0;
               const target = sub.targetPage || 0;
               const percent = target > 0 ? Math.min(100, Math.round((reached / target) * 100)) : 0;
               
@@ -274,7 +274,7 @@ export default async function StudentHomePage() {
                     </div>
                   )}
                   
-                  {!latestLec && (
+                  {!latestLec && reached === 0 && (
                     <div style={{ fontSize: "0.85rem", color: "var(--text-tertiary)", marginTop: "0.5rem" }}>
                       لم يتم تسجيل أي تقدم بعد.
                     </div>

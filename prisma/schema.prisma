@@ -57,6 +57,7 @@ model Subject {
   // Curriculum tracking
   bookName     String?      // The book assigned to this subject
   targetPage   Int?         // The page to reach by the end of the term
+  reachedPage  Int?         // The current page reached in the syllabus
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 }
