@@ -34,6 +34,42 @@ async function addLecture(formData: FormData) {
   revalidatePath(`/lecture-days/${lectureDayId}`);
 }
 
+async function addSuggestedLectures(formData: FormData) {
+  "use server"
+  const session = await getStaffSession();
+  if (!session) return;
+
+  const lectureDayId = (formData.get("lectureDayId") as string) || "";
+  if (!lectureDayId) return;
+
+  const subjectIds = formData.getAll("subjectId") as string[];
+  const lecturerIds = formData.getAll("lecturerId") as string[];
+  const startTimes = formData.getAll("startTime") as string[];
+  const endTimes = formData.getAll("endTime") as string[];
+
+  // Find current max order
+  const last = await prisma.lecture.findFirst({
+    where: { lectureDayId },
+    orderBy: { order: "desc" },
+    select: { order: true },
+  });
+  let nextOrder = (last?.order ?? 0) + 1;
+
+  for (let i = 0; i < subjectIds.length; i++) {
+    const subjectId = subjectIds[i];
+    const lecturerId = lecturerIds[i] || null;
+    const startTime = (startTimes[i] || "").trim();
+    const endTime = (endTimes[i] || "").trim();
+    if (!subjectId || !startTime || !endTime) continue;
+
+    await prisma.lecture.create({
+      data: { lectureDayId, subjectId, lecturerId, startTime, endTime, order: nextOrder },
+    });
+    nextOrder++;
+  }
+  revalidatePath(`/lecture-days/${lectureDayId}`);
+}
+
 async function deleteLecture(formData: FormData) {
   "use server"
   const session = await getStaffSession();
@@ -301,63 +337,82 @@ export default async function LectureDayPage({ params }: { params: Promise<{ id:
               📋 مقترحات المحاضرين من Telegram
             </h3>
             <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", margin: 0 }}>
-              بناءً على اختيارات المحاضرين — حدد الوقت فقط ثم اضغط "إضافة". يمكنك التعديل لاحقاً كالمعتاد.
+              المحاضرون اختاروا هذه المواد — حدّد الأوقات واضغط "إضافة للجدول" مرة واحدة.
             </p>
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
-            {suggestions.map((s) => (
-              <form
-                key={s.key}
-                action={addLecture}
+          <form action={addSuggestedLectures}>
+            <input type="hidden" name="lectureDayId" value={day.id} />
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "1rem" }}>
+              {/* Header row */}
+              <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "1fr 1fr auto auto auto",
+                  gridTemplateColumns: "1fr 160px 110px 110px",
                   gap: "0.6rem",
-                  alignItems: "center",
-                  padding: "0.6rem 0.75rem",
-                  background: "var(--bg-secondary)",
-                  border: "1px solid var(--border-color)",
-                  borderRadius: "var(--border-radius-sm)",
+                  padding: "0 0.75rem",
+                  fontSize: "0.78rem",
+                  color: "var(--text-tertiary)",
+                  fontWeight: 600,
                 }}
               >
-                <input type="hidden" name="lectureDayId" value={day.id} />
-                <input type="hidden" name="subjectId" value={s.subjectId} />
-                <input type="hidden" name="lecturerId" value={s.lecturerId} />
+                <span>المادة / المحاضر</span>
+                <span></span>
+                <span>من الساعة</span>
+                <span>إلى الساعة</span>
+              </div>
 
-                {/* Subject + lecturer info */}
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>{s.subjectName}</div>
-                  <div style={{ fontSize: "0.78rem", color: "var(--text-secondary)" }}>
-                    {s.yearName}
-                  </div>
-                </div>
-                <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-                  👨‍🏫 {s.lecturerName}
-                </div>
-
-                {/* Times */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem" }}>
-                  <label style={{ fontSize: "0.72rem", color: "var(--text-tertiary)" }}>من</label>
-                  <input type="time" name="startTime" className="input-field" required
-                    style={{ padding: "0.3rem 0.5rem", fontSize: "0.85rem", minWidth: 100 }} />
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem" }}>
-                  <label style={{ fontSize: "0.72rem", color: "var(--text-tertiary)" }}>إلى</label>
-                  <input type="time" name="endTime" className="input-field" required
-                    style={{ padding: "0.3rem 0.5rem", fontSize: "0.85rem", minWidth: 100 }} />
-                </div>
-
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  style={{ padding: "0.45rem 0.9rem", fontSize: "0.85rem", alignSelf: "end" }}
+              {suggestions.map((s) => (
+                <div
+                  key={s.key}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 160px 110px 110px",
+                    gap: "0.6rem",
+                    alignItems: "center",
+                    padding: "0.55rem 0.75rem",
+                    background: "var(--bg-secondary)",
+                    border: "1px solid var(--border-color)",
+                    borderRadius: "var(--border-radius-sm)",
+                  }}
                 >
-                  + إضافة
-                </button>
-              </form>
-            ))}
-          </div>
+                  <input type="hidden" name="subjectId" value={s.subjectId} />
+                  <input type="hidden" name="lecturerId" value={s.lecturerId} />
+
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>{s.subjectName}</div>
+                    <div style={{ fontSize: "0.78rem", color: "var(--text-secondary)" }}>
+                      {s.yearName}
+                    </div>
+                  </div>
+
+                  <div style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>
+                    👨‍🏫 {s.lecturerName}
+                  </div>
+
+                  <input
+                    type="time"
+                    name="startTime"
+                    className="input-field"
+                    required
+                    style={{ padding: "0.35rem 0.5rem", fontSize: "0.85rem" }}
+                  />
+                  <input
+                    type="time"
+                    name="endTime"
+                    className="input-field"
+                    required
+                    style={{ padding: "0.35rem 0.5rem", fontSize: "0.85rem" }}
+                  />
+                </div>
+              ))}
+            </div>
+
+            <button type="submit" className="btn btn-primary" style={{ padding: "0.6rem 1.4rem" }}>
+              ✓ إضافة للجدول
+            </button>
+          </form>
         </section>
       )}
 
