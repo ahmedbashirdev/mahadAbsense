@@ -167,7 +167,7 @@ export default async function LecturersPage({ searchParams }: { searchParams: Pr
   const sp = await searchParams;
   const editId = sp.edit;
 
-  const [lecturers, allSubjects, lecturerToEdit] = await Promise.all([
+  const [lecturers, allSubjects, lecturerToEdit, tgSubs] = await Promise.all([
     prisma.lecturer.findMany({
       include: { subjects: { select: { id: true, name: true, academicYear: { select: { name: true } } } } },
       orderBy: [{ approvalStatus: "asc" }, { name: "asc" }],
@@ -182,7 +182,13 @@ export default async function LecturersPage({ searchParams }: { searchParams: Pr
           include: { subjects: { select: { id: true } } },
         })
       : null,
+    prisma.telegramSubscription.findMany({
+      where: { userType: "LECTURER" },
+      select: { refId: true, firstName: true, username: true },
+    }),
   ]);
+
+  const tgByLecturer = new Map(tgSubs.map((s) => [s.refId, s]));
 
   const subjectsForPicker = allSubjects.map((s) => ({
     id: s.id,
@@ -373,12 +379,15 @@ export default async function LecturersPage({ searchParams }: { searchParams: Pr
                     <th>الاسم</th>
                     <th>اسم الدخول</th>
                     <th>الحالة</th>
+                    <th>Telegram</th>
                     <th>المواد</th>
                     <th>إجراءات</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {lecturers.map((l) => (
+                  {lecturers.map((l) => {
+                    const tg = tgByLecturer.get(l.id);
+                    return (
                     <tr key={l.id}>
                       <td style={{ fontWeight: 600 }}>{l.name}</td>
                       <td style={{ color: "var(--text-secondary)" }} dir="ltr">
@@ -391,6 +400,17 @@ export default async function LecturersPage({ searchParams }: { searchParams: Pr
                           <span className="status-badge status-present">✓ مفعّل</span>
                         ) : (
                           <span className="status-badge status-absent">⏸ موقوف</span>
+                        )}
+                      </td>
+                      <td>
+                        {tg ? (
+                          <span className="status-badge status-present" style={{ fontSize: "0.8rem" }}>
+                            ✓ {tg.firstName || tg.username || "مربوط"}
+                          </span>
+                        ) : (
+                          <span className="status-badge" style={{ backgroundColor: "var(--bg-tertiary)", color: "var(--text-secondary)", fontSize: "0.8rem" }}>
+                            — غير مربوط
+                          </span>
                         )}
                       </td>
                       <td style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
@@ -413,7 +433,8 @@ export default async function LecturersPage({ searchParams }: { searchParams: Pr
                         </Link>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
