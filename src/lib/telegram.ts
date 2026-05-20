@@ -82,6 +82,41 @@ export function escapeHtml(s: string): string {
     .replace(/>/g, "&gt;");
 }
 
+export async function answerCallbackQuery(callbackQueryId: string, text?: string) {
+  return tg("answerCallbackQuery", {
+    callback_query_id: callbackQueryId,
+    ...(text ? { text, show_alert: false } : {}),
+  });
+}
+
+export async function editMessageText(
+  chatId: string | number,
+  messageId: number,
+  text: string,
+  opts?: TelegramSendOptions
+) {
+  return tg("editMessageText", {
+    chat_id: chatId,
+    message_id: messageId,
+    text,
+    parse_mode: opts?.parse_mode ?? "HTML",
+    disable_web_page_preview: opts?.disable_web_page_preview ?? true,
+    ...(opts?.reply_markup !== undefined ? { reply_markup: opts.reply_markup } : {}),
+  });
+}
+
+export async function editMessageReplyMarkup(
+  chatId: string | number,
+  messageId: number,
+  replyMarkup: unknown
+) {
+  return tg("editMessageReplyMarkup", {
+    chat_id: chatId,
+    message_id: messageId,
+    reply_markup: replyMarkup,
+  });
+}
+
 /** Send the same message to many chats; returns counts per outcome. */
 export async function broadcastTelegramMessage(
   chatIds: Array<string | number>,

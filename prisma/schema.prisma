@@ -123,13 +123,28 @@ model LecturerAvailability {
   lecturer     Lecturer   @relation(fields: [lecturerId], references: [id], onDelete: Cascade)
   lectureDayId String
   lectureDay   LectureDay @relation(fields: [lectureDayId], references: [id], onDelete: Cascade)
-  status       String     @default("PENDING") // "PENDING" | "CONFIRMED" | "DECLINED"
-  reason       String?    // Reason given when declining
-  respondedAt  DateTime?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  status            String     @default("PENDING") // "PENDING" | "CONFIRMED" | "DECLINED"
+  reason            String?    // Reason given when declining
+  plannedSubjectIds String     @default("[]") // JSON array of subject IDs chosen via Telegram
+  respondedAt       DateTime?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
 
   @@unique([lecturerId, lectureDayId])
+}
+
+// Short-lived session for multi-step Telegram bot interactions
+// (e.g., lecturer selecting subjects after tapping "تأكيد الحضور")
+model TelegramBotSession {
+  id             String   @id @default(cuid())
+  chatId         String
+  availabilityId String
+  selectedIds    String   @default("[]") // JSON array of selected subject IDs
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+
+  @@index([chatId])
+  @@index([availabilityId])
 }
 
 // A specific scheduled lecture in the timetable.

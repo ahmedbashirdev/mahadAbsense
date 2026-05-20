@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { sendTelegramMessage, escapeHtml } from "@/lib/telegram";
+import {
+  sendTelegramMessage,
+  answerCallbackQuery,
+  editMessageText,
+  escapeHtml,
+} from "@/lib/telegram";
+import { notifyAdminsOfLecturerResponse } from "@/lib/telegramBroadcast";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,10 +26,20 @@ type TelegramMessage = {
   text?: string;
 };
 
+type TelegramCallbackQuery = {
+  id: string;
+  from: TelegramUser;
+  message?: TelegramMessage;
+  data?: string;
+};
+
 type Update = {
   update_id: number;
   message?: TelegramMessage;
+  callback_query?: TelegramCallbackQuery;
 };
+
+// ─── /start handler ──────────────────────────────────────────────────────────
 
 async function handleStartCommand(message: TelegramMessage, code: string) {
   const chatId = message.chat.id;
@@ -39,7 +55,6 @@ async function handleStartCommand(message: TelegramMessage, code: string) {
     return;
   }
 
-  // Look up the link code.
   const link = await prisma.telegramLinkCode.findUnique({ where: { code } });
   if (!link) {
     await sendTelegramMessage(chatId, "❌ الرمز غير صالح. ارجع للموقع وحاول مرة تانية.");
@@ -54,7 +69,6 @@ async function handleStartCommand(message: TelegramMessage, code: string) {
     return;
   }
 
-  // Resolve the target user's display name for the success message.
   let displayName = "المستخدم";
   if (link.userType === "STUDENT") {
     const s = await prisma.student.findUnique({ where: { id: link.refId }, select: { name: true } });
@@ -67,27 +81,12 @@ async function handleStartCommand(message: TelegramMessage, code: string) {
     if (u) displayName = u.name;
   }
 
-  // Bind the chatId to THIS Mahad account. We intentionally do NOT remove
-  // other subscriptions on the same chat — a single Telegram user might be
-  // managing several Mahad accounts (e.g., a parent with two kids).
   try {
     await prisma.$transaction([
       prisma.telegramSubscription.upsert({
         where: { userType_refId: { userType: link.userType, refId: link.refId } },
-        update: {
-          chatId: String(chatId),
-          username: fromUsername,
-          firstName,
-          lastName,
-        },
-        create: {
-          userType: link.userType,
-          refId: link.refId,
-          chatId: String(chatId),
-          username: fromUsername,
-          firstName,
-          lastName,
-        },
+        update: { chatId: String(chatId), username: fromUsername, firstName, lastName },
+        create: { userType: link.userType, refId: link.refId, chatId: String(chatId), username: fromUsername, firstName, lastName },
       }),
       prisma.telegramLinkCode.update({ where: { id: link.id }, data: { usedAt: new Date() } }),
     ]);
@@ -103,12 +102,347 @@ async function handleStartCommand(message: TelegramMessage, code: string) {
   );
 }
 
+// ─── Inline-keyboard callback helpers ────────────────────────────────────────
+
+/**
+ * Build the subject-selection message text + inline keyboard for a session.
+ */
+function buildSubjectSelectionMessage(
+  subjects: Array<{ id: string; name: string }>,
+  selectedIds: string[],
+  dateLabel: string,
+) {
+  const selectedSet = new Set(selectedIds);
+  const lines = [
+    `📚 <b>اختر المواد اللي هتشرحها يوم ${escapeHtml(dateLabel)}:</b>`,
+    ``,
+    selectedIds.length === 0
+      ? `<i>(لم تختر أي مادة بعد)</i>`
+      : `المختارة: ${selectedIds.length} من ${subjects.length}`,
+  ];
+  return lines.join("\n");
+}
+
+function buildSubjectKeyboard(
+  subjects: Array<{ id: string; name: string }>,
+  selectedIds: string[],
+  sessId: string,
+) {
+  const selectedSet = new Set(selectedIds);
+  const rows = subjects.map((s) => [
+    {
+      text: `${selectedSet.has(s.id) ? "☑" : "☐"} ${s.name}`,
+      callback_data: `stog:${sessId}:${s.id}`,
+    },
+  ]);
+  rows.push([{ text: "✅ تأكيد الاختيار", callback_data: `done:${sessId}` }]);
+  return { inline_keyboard: rows };
+}
+
+/**
+ * Lecturer pressed "✅ تأكيد الحضور" — show subject selection.
+ * If the lecturer has no linked subjects, confirm directly.
+ */
+async function handleConfirmAttendance(
+  chatId: number,
+  messageId: number | undefined,
+  cqId: string,
+  avId: string,
+) {
+  // Load availability + subjects for this lecturer
+  const av = await prisma.lecturerAvailability.findUnique({
+    where: { id: avId },
+    include: {
+      lecturer: { include: { subjects: { select: { id: true, name: true } } } },
+      lectureDay: { select: { date: true, label: true } },
+    },
+  });
+
+  if (!av) {
+    await answerCallbackQuery(cqId, "❌ لم يُعثر على الطلب.");
+    return;
+  }
+  if (av.status !== "PENDING") {
+    const statusAr = av.status === "CONFIRMED" ? "مؤكد" : "معتذر";
+    await answerCallbackQuery(cqId, `ℹ️ لقد سبق إرسال ردّك (${statusAr}).`);
+    return;
+  }
+
+  const dateLabel = new Date(av.lectureDay.date).toLocaleDateString("ar-EG", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+  const subjects = av.lecturer.subjects;
+
+  // If no subjects linked, confirm immediately without subject selection
+  if (subjects.length === 0) {
+    await prisma.lecturerAvailability.update({
+      where: { id: avId },
+      data: { status: "CONFIRMED", plannedSubjectIds: "[]", respondedAt: new Date() },
+    });
+    const newText = [
+      `✅ <b>تم تأكيد حضورك بنجاح</b>`,
+      ``,
+      `📅 يوم: <b>${escapeHtml(dateLabel)}</b>`,
+      av.lectureDay.label ? `(${escapeHtml(av.lectureDay.label)})` : "",
+    ].filter(Boolean).join("\n");
+
+    if (messageId) {
+      await editMessageText(chatId, messageId, newText, { reply_markup: null as unknown as undefined });
+    } else {
+      await sendTelegramMessage(chatId, newText);
+    }
+    await answerCallbackQuery(cqId, "✅ تم تأكيد حضورك!");
+    // Notify admins
+    await notifyAdminsOfLecturerResponse(avId);
+    return;
+  }
+
+  // Create a bot session for multi-step subject selection
+  const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
+  const sess = await prisma.telegramBotSession.create({
+    data: {
+      chatId: String(chatId),
+      availabilityId: avId,
+      selectedIds: "[]",
+      expiresAt,
+    },
+  });
+
+  const text = buildSubjectSelectionMessage(subjects, [], dateLabel);
+  const keyboard = buildSubjectKeyboard(subjects, [], sess.id);
+
+  if (messageId) {
+    await editMessageText(chatId, messageId, text, { reply_markup: keyboard });
+  } else {
+    await sendTelegramMessage(chatId, text, { reply_markup: keyboard });
+  }
+  await answerCallbackQuery(cqId);
+}
+
+/**
+ * Lecturer pressed "❌ اعتذار".
+ */
+async function handleDeclineAttendance(
+  chatId: number,
+  messageId: number | undefined,
+  cqId: string,
+  avId: string,
+) {
+  const av = await prisma.lecturerAvailability.findUnique({
+    where: { id: avId },
+    include: { lectureDay: { select: { date: true, label: true } } },
+  });
+
+  if (!av) {
+    await answerCallbackQuery(cqId, "❌ لم يُعثر على الطلب.");
+    return;
+  }
+  if (av.status !== "PENDING") {
+    const statusAr = av.status === "CONFIRMED" ? "مؤكد" : "معتذر";
+    await answerCallbackQuery(cqId, `ℹ️ لقد سبق إرسال ردّك (${statusAr}).`);
+    return;
+  }
+
+  await prisma.lecturerAvailability.update({
+    where: { id: avId },
+    data: { status: "DECLINED", respondedAt: new Date() },
+  });
+
+  const dateLabel = new Date(av.lectureDay.date).toLocaleDateString("ar-EG", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+  const newText = [
+    `❌ <b>تم تسجيل اعتذارك</b>`,
+    ``,
+    `📅 يوم: <b>${escapeHtml(dateLabel)}</b>`,
+    av.lectureDay.label ? `(${escapeHtml(av.lectureDay.label)})` : "",
+    ``,
+    `شكرًا على الإخطار. يمكنك تغيير ردّك في أي وقت من حسابك على الموقع.`,
+  ].filter(Boolean).join("\n");
+
+  if (messageId) {
+    await editMessageText(chatId, messageId, newText, { reply_markup: null as unknown as undefined });
+  } else {
+    await sendTelegramMessage(chatId, newText);
+  }
+  await answerCallbackQuery(cqId, "تم تسجيل اعتذارك.");
+  await notifyAdminsOfLecturerResponse(avId);
+}
+
+/**
+ * Lecturer toggled a subject checkbox.
+ */
+async function handleToggleSubject(
+  chatId: number,
+  messageId: number | undefined,
+  cqId: string,
+  sessId: string,
+  subId: string,
+) {
+  const sess = await prisma.telegramBotSession.findUnique({ where: { id: sessId } });
+  if (!sess || sess.expiresAt < new Date()) {
+    await answerCallbackQuery(cqId, "⌛ انتهت صلاحية الجلسة. ابدأ من أول.");
+    return;
+  }
+
+  let selected: string[] = JSON.parse(sess.selectedIds || "[]");
+  if (selected.includes(subId)) {
+    selected = selected.filter((id) => id !== subId);
+  } else {
+    selected.push(subId);
+  }
+
+  await prisma.telegramBotSession.update({
+    where: { id: sessId },
+    data: { selectedIds: JSON.stringify(selected) },
+  });
+
+  // Rebuild the keyboard with updated selections
+  const av = await prisma.lecturerAvailability.findUnique({
+    where: { id: sess.availabilityId },
+    include: {
+      lecturer: { include: { subjects: { select: { id: true, name: true } } } },
+      lectureDay: { select: { date: true, label: true } },
+    },
+  });
+  if (!av) {
+    await answerCallbackQuery(cqId, "❌ خطأ في تحميل البيانات.");
+    return;
+  }
+
+  const dateLabel = new Date(av.lectureDay.date).toLocaleDateString("ar-EG", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+  const text = buildSubjectSelectionMessage(av.lecturer.subjects, selected, dateLabel);
+  const keyboard = buildSubjectKeyboard(av.lecturer.subjects, selected, sessId);
+
+  if (messageId) {
+    await editMessageText(chatId, messageId, text, { reply_markup: keyboard });
+  }
+  await answerCallbackQuery(cqId);
+}
+
+/**
+ * Lecturer pressed "✅ تأكيد الاختيار" — finalize subject selection and confirm.
+ */
+async function handleDoneSubjectSelection(
+  chatId: number,
+  messageId: number | undefined,
+  cqId: string,
+  sessId: string,
+) {
+  const sess = await prisma.telegramBotSession.findUnique({ where: { id: sessId } });
+  if (!sess || sess.expiresAt < new Date()) {
+    await answerCallbackQuery(cqId, "⌛ انتهت صلاحية الجلسة. ابدأ من أول.");
+    return;
+  }
+
+  const selectedIds: string[] = JSON.parse(sess.selectedIds || "[]");
+
+  const av = await prisma.lecturerAvailability.findUnique({
+    where: { id: sess.availabilityId },
+    include: {
+      lecturer: { include: { subjects: { select: { id: true, name: true } } } },
+      lectureDay: { select: { date: true, label: true } },
+    },
+  });
+  if (!av) {
+    await answerCallbackQuery(cqId, "❌ خطأ في تحميل البيانات.");
+    await prisma.telegramBotSession.delete({ where: { id: sessId } }).catch(() => null);
+    return;
+  }
+
+  // Build confirmed message
+  const dateLabel = new Date(av.lectureDay.date).toLocaleDateString("ar-EG", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+
+  const selectedSubjects = av.lecturer.subjects.filter((s) => selectedIds.includes(s.id));
+  const subjectLines =
+    selectedSubjects.length > 0
+      ? selectedSubjects.map((s) => `  • ${escapeHtml(s.name)}`).join("\n")
+      : "  (لم تختر مواد محددة)";
+
+  // Update availability to CONFIRMED
+  await prisma.lecturerAvailability.update({
+    where: { id: sess.availabilityId },
+    data: {
+      status: "CONFIRMED",
+      plannedSubjectIds: JSON.stringify(selectedIds),
+      respondedAt: new Date(),
+    },
+  });
+
+  // Clean up session
+  await prisma.telegramBotSession.delete({ where: { id: sessId } }).catch(() => null);
+
+  const newText = [
+    `✅ <b>تم تأكيد حضورك بنجاح</b>`,
+    ``,
+    `📅 يوم: <b>${escapeHtml(dateLabel)}</b>`,
+    av.lectureDay.label ? `(${escapeHtml(av.lectureDay.label)})` : "",
+    ``,
+    `📚 المواد المختارة:`,
+    subjectLines,
+    ``,
+    `شكرًا! يمكنك تعديل ردّك في أي وقت من حسابك على الموقع.`,
+  ].filter(Boolean).join("\n");
+
+  if (messageId) {
+    await editMessageText(chatId, messageId, newText, { reply_markup: null as unknown as undefined });
+  } else {
+    await sendTelegramMessage(chatId, newText);
+  }
+  await answerCallbackQuery(cqId, "✅ تم تأكيد حضورك!");
+  await notifyAdminsOfLecturerResponse(sess.availabilityId);
+}
+
+// ─── Main callback_query dispatcher ──────────────────────────────────────────
+
+async function handleCallbackQuery(cq: TelegramCallbackQuery) {
+  const chatId = cq.from.id;
+  const data = cq.data || "";
+  const messageId = cq.message?.message_id;
+
+  if (data.startsWith("conf:")) {
+    await handleConfirmAttendance(chatId, messageId, cq.id, data.slice(5));
+  } else if (data.startsWith("decl:")) {
+    await handleDeclineAttendance(chatId, messageId, cq.id, data.slice(5));
+  } else if (data.startsWith("stog:")) {
+    const rest = data.slice(5);
+    const colonIdx = rest.indexOf(":");
+    const sessId = rest.slice(0, colonIdx);
+    const subId = rest.slice(colonIdx + 1);
+    await handleToggleSubject(chatId, messageId, cq.id, sessId, subId);
+  } else if (data.startsWith("done:")) {
+    await handleDoneSubjectSelection(chatId, messageId, cq.id, data.slice(5));
+  } else {
+    await answerCallbackQuery(cq.id, "❓ أمر غير معروف.");
+  }
+}
+
+// ─── Route handlers ───────────────────────────────────────────────────────────
+
 export async function POST(req: Request) {
   let update: Update;
   try {
     update = (await req.json()) as Update;
   } catch {
     return NextResponse.json({ ok: false }, { status: 400 });
+  }
+
+  // Handle inline-button presses
+  if (update.callback_query) {
+    await handleCallbackQuery(update.callback_query);
+    return NextResponse.json({ ok: true });
   }
 
   const message = update.message;
@@ -118,14 +452,12 @@ export async function POST(req: Request) {
 
   const text = message.text.trim();
 
-  // /start [code]
   if (text.startsWith("/start")) {
     const code = text.slice("/start".length).trim();
     await handleStartCommand(message, code);
     return NextResponse.json({ ok: true });
   }
 
-  // /help
   if (text.startsWith("/help")) {
     await sendTelegramMessage(
       message.chat.id,
@@ -142,7 +474,6 @@ export async function POST(req: Request) {
   return NextResponse.json({ ok: true });
 }
 
-// GET handler is useful for a quick health check from Vercel.
 export async function GET() {
   return NextResponse.json({ ok: true, hint: "POST telegram updates to this URL" });
 }

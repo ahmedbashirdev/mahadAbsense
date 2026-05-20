@@ -1,7 +1,7 @@
 "use server"
 import { prisma } from "@/lib/prisma";
 import { getStaffSession } from "@/lib/auth";
-import { broadcastTelegramMessage, getTelegramDeepLink, escapeHtml } from "@/lib/telegram";
+import { broadcastTelegramMessage, sendTelegramMessage, getTelegramDeepLink, escapeHtml } from "@/lib/telegram";
 import { logActivity } from "@/lib/logger";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || "";
@@ -49,18 +49,22 @@ export async function notifyLecturersToConfirm(lectureDayId: string) {
     if (!chatId) { skippedNoTelegram++; continue; }
     if (a.status === "CONFIRMED" || a.status === "DECLINED") { skippedConfirmed++; continue; }
 
-    const link = APP_URL ? `${APP_URL}/me-lecturer` : "";
     const text = [
       `🕌 <b>طلب تأكيد حضور</b>`,
       ``,
       `أ. ${escapeHtml(a.lecturer.name)}،`,
       `يرجى تأكيد حضورك يوم <b>${escapeHtml(dateLabel)}</b>${day.label ? ` (${escapeHtml(day.label)})` : ""}.`,
-      ``,
-      link ? `أكد من حسابك: ${link}` : `أكد من حسابك في الموقع.`,
     ].join("\n");
 
-    const r = await broadcastTelegramMessage([chatId], text);
-    if (r.failed > 0) failed++;
+    const keyboard = {
+      inline_keyboard: [[
+        { text: "✅ تأكيد الحضور", callback_data: `conf:${a.id}` },
+        { text: "❌ اعتذار", callback_data: `decl:${a.id}` },
+      ]],
+    };
+
+    const r = await sendTelegramMessage(chatId, text, { reply_markup: keyboard });
+    if (!r.ok) failed++;
     else sent++;
   }
 
@@ -302,15 +306,19 @@ export async function sendLecturerReminders() {
     for (const a of d.availabilities) {
       const chatId = subByLecturer.get(a.lecturerId);
       if (!chatId) continue;
-      const link = APP_URL ? `${APP_URL}/me-lecturer` : "";
       const text = [
         `⏳ <b>تذكير: لم تؤكد حضورك بعد</b>`,
         ``,
         `أ. ${escapeHtml(a.lecturer.name)}، يرجى تأكيد أو الاعتذار عن يوم <b>${escapeHtml(dateLabel)}</b>.`,
-        link ? `\n${link}` : "",
       ].join("\n");
-      const r = await broadcastTelegramMessage([chatId], text);
-      if (r.failed > 0) failed++;
+      const keyboard = {
+        inline_keyboard: [[
+          { text: "✅ تأكيد الحضور", callback_data: `conf:${a.id}` },
+          { text: "❌ اعتذار", callback_data: `decl:${a.id}` },
+        ]],
+      };
+      const r = await sendTelegramMessage(chatId, text, { reply_markup: keyboard });
+      if (!r.ok) failed++;
       else sent++;
     }
   }
