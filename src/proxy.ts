@@ -5,7 +5,7 @@ import { decrypt, Session } from "@/lib/auth";
 const publicRoutes = ["/login", "/signup", "/signup-lecturer", "/logout-suspended"];
 
 // Public APIs might exist, but usually they handle auth internally or are webhooks
-const publicApiRoutes = ["/api/telegram-webhook"];
+const publicApiRoutes = ["/api/telegram/webhook", "/api/cron/"];
 
 export async function proxy(req: NextRequest) {
   const path = req.nextUrl.pathname;
