@@ -21,7 +21,6 @@ async function addLecture(formData: FormData) {
   const endTime = ((formData.get("endTime") as string) || "").trim();
   if (!lectureDayId || !subjectId || !startTime || !endTime) return;
 
-  // Determine the next order number for the day
   const last = await prisma.lecture.findFirst({
     where: { lectureDayId },
     orderBy: { order: "desc" },
@@ -30,14 +29,7 @@ async function addLecture(formData: FormData) {
   const nextOrder = (last?.order ?? 0) + 1;
 
   await prisma.lecture.create({
-    data: {
-      lectureDayId,
-      subjectId,
-      lecturerId,
-      startTime,
-      endTime,
-      order: nextOrder,
-    },
+    data: { lectureDayId, subjectId, lecturerId, startTime, endTime, order: nextOrder },
   });
   revalidatePath(`/lecture-days/${lectureDayId}`);
 }
@@ -63,7 +55,7 @@ async function moveLecture(formData: FormData) {
   if (!session) return;
 
   const id = (formData.get("id") as string) || "";
-  const direction = (formData.get("direction") as string) || ""; // "up" | "down"
+  const direction = (formData.get("direction") as string) || "";
   if (!id || (direction !== "up" && direction !== "down")) return;
 
   const current = await prisma.lecture.findUnique({ where: { id } });
@@ -126,7 +118,11 @@ export default async function LectureDayPage({ params }: { params: Promise<{ id:
     where: { id },
     include: {
       availabilities: {
-        include: { lecturer: { select: { id: true, name: true, subjects: { select: { id: true, name: true } } } } },
+        include: {
+          lecturer: {
+            select: { id: true, name: true, subjects: { select: { id: true, name: true } } },
+          },
+        },
         orderBy: { lecturer: { name: "asc" } },
       },
       lectures: {
@@ -146,11 +142,47 @@ export default async function LectureDayPage({ params }: { params: Promise<{ id:
     .filter((a) => a.status === "CONFIRMED")
     .map((a) => a.lecturer);
 
-  // All subjects, for the "add lecture" picker.
+  // All subjects for the manual "add lecture" picker.
   const allSubjects = await prisma.subject.findMany({
     include: { academicYear: { select: { name: true, order: true } } },
     orderBy: [{ academicYear: { order: "asc" } }, { name: "asc" }],
   });
+
+  // Build suggested lectures from what confirmed lecturers chose via Telegram.
+  // Each entry = one pre-filled row in the suggestions panel.
+  type Suggestion = {
+    key: string;
+    subjectId: string;
+    subjectName: string;
+    yearName: string;
+    lecturerId: string;
+    lecturerName: string;
+  };
+
+  const allSubjectMap = new Map(
+    allSubjects.map((s) => [s.id, { name: s.name, yearName: s.academicYear.name }])
+  );
+
+  const suggestions: Suggestion[] = [];
+  for (const a of day.availabilities) {
+    if (a.status !== "CONFIRMED") continue;
+    let plannedIds: string[] = [];
+    try { plannedIds = JSON.parse(a.plannedSubjectIds || "[]"); } catch { /* skip */ }
+    if (plannedIds.length === 0) continue;
+
+    for (const subId of plannedIds) {
+      const subInfo = allSubjectMap.get(subId);
+      if (!subInfo) continue;
+      suggestions.push({
+        key: `${a.lecturerId}-${subId}`,
+        subjectId: subId,
+        subjectName: subInfo.name,
+        yearName: subInfo.yearName,
+        lecturerId: a.lecturerId,
+        lecturerName: a.lecturer.name,
+      });
+    }
+  }
 
   const dateStr = new Date(day.date).toLocaleDateString("ar-EG", {
     weekday: "long",
@@ -202,29 +234,132 @@ export default async function LectureDayPage({ params }: { params: Promise<{ id:
                   <th>المحاضر</th>
                   <th>الحالة</th>
                   <th>السبب (لو معتذر)</th>
-                  <th>المواد</th>
+                  <th>المواد المخططة</th>
                 </tr>
               </thead>
               <tbody>
-                {day.availabilities.map((a) => (
-                  <tr key={a.id}>
-                    <td style={{ fontWeight: 600 }}>{a.lecturer.name}</td>
-                    <td>
-                      {a.status === "CONFIRMED" && <span className="status-badge status-present">✓ مؤكد</span>}
-                      {a.status === "DECLINED" && <span className="status-badge status-absent">✗ معتذر</span>}
-                      {a.status === "PENDING" && <span className="status-badge status-excused">⏳ بانتظار</span>}
-                    </td>
-                    <td style={{ color: "var(--text-secondary)", fontSize: "0.85rem" }}>{a.reason || "—"}</td>
-                    <td style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
-                      {a.lecturer.subjects.map((s) => s.name).join("، ") || "—"}
-                    </td>
-                  </tr>
-                ))}
+                {day.availabilities.map((a) => {
+                  let plannedIds: string[] = [];
+                  try { plannedIds = JSON.parse(a.plannedSubjectIds || "[]"); } catch { /* skip */ }
+                  const plannedSubjects = a.lecturer.subjects.filter((s) =>
+                    plannedIds.includes(s.id)
+                  );
+
+                  return (
+                    <tr key={a.id}>
+                      <td style={{ fontWeight: 600 }}>{a.lecturer.name}</td>
+                      <td>
+                        {a.status === "CONFIRMED" && (
+                          <span className="status-badge status-present">✓ مؤكد</span>
+                        )}
+                        {a.status === "DECLINED" && (
+                          <span className="status-badge status-absent">✗ معتذر</span>
+                        )}
+                        {a.status === "PENDING" && (
+                          <span className="status-badge status-excused">⏳ بانتظار</span>
+                        )}
+                      </td>
+                      <td style={{ color: "var(--text-secondary)", fontSize: "0.85rem" }}>
+                        {a.reason || "—"}
+                      </td>
+                      <td style={{ fontSize: "0.85rem" }}>
+                        {a.status === "CONFIRMED" ? (
+                          plannedSubjects.length > 0 ? (
+                            <span style={{ color: "var(--success, #10b981)", fontWeight: 600 }}>
+                              {plannedSubjects.map((s) => s.name).join("، ")}
+                            </span>
+                          ) : (
+                            <span style={{ color: "var(--text-tertiary)" }}>
+                              لم يحدد مواد بعينها
+                            </span>
+                          )
+                        ) : (
+                          <span style={{ color: "var(--text-tertiary)" }}>—</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
       </section>
+
+      {/* ─── Telegram suggestions panel ─────────────────────────────────── */}
+      {suggestions.length > 0 && (
+        <section
+          className="card animate-fade-in"
+          style={{
+            marginBottom: "1.5rem",
+            border: "1px solid rgba(16, 185, 129, 0.35)",
+            background: "rgba(16, 185, 129, 0.04)",
+          }}
+        >
+          <div style={{ marginBottom: "1rem" }}>
+            <h3 style={{ fontWeight: 700, marginBottom: "0.25rem" }}>
+              📋 مقترحات المحاضرين من Telegram
+            </h3>
+            <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", margin: 0 }}>
+              بناءً على اختيارات المحاضرين — حدد الوقت فقط ثم اضغط "إضافة". يمكنك التعديل لاحقاً كالمعتاد.
+            </p>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+            {suggestions.map((s) => (
+              <form
+                key={s.key}
+                action={addLecture}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr auto auto auto",
+                  gap: "0.6rem",
+                  alignItems: "center",
+                  padding: "0.6rem 0.75rem",
+                  background: "var(--bg-secondary)",
+                  border: "1px solid var(--border-color)",
+                  borderRadius: "var(--border-radius-sm)",
+                }}
+              >
+                <input type="hidden" name="lectureDayId" value={day.id} />
+                <input type="hidden" name="subjectId" value={s.subjectId} />
+                <input type="hidden" name="lecturerId" value={s.lecturerId} />
+
+                {/* Subject + lecturer info */}
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>{s.subjectName}</div>
+                  <div style={{ fontSize: "0.78rem", color: "var(--text-secondary)" }}>
+                    {s.yearName}
+                  </div>
+                </div>
+                <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                  👨‍🏫 {s.lecturerName}
+                </div>
+
+                {/* Times */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem" }}>
+                  <label style={{ fontSize: "0.72rem", color: "var(--text-tertiary)" }}>من</label>
+                  <input type="time" name="startTime" className="input-field" required
+                    style={{ padding: "0.3rem 0.5rem", fontSize: "0.85rem", minWidth: 100 }} />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem" }}>
+                  <label style={{ fontSize: "0.72rem", color: "var(--text-tertiary)" }}>إلى</label>
+                  <input type="time" name="endTime" className="input-field" required
+                    style={{ padding: "0.3rem 0.5rem", fontSize: "0.85rem", minWidth: 100 }} />
+                </div>
+
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ padding: "0.45rem 0.9rem", fontSize: "0.85rem", alignSelf: "end" }}
+                >
+                  + إضافة
+                </button>
+              </form>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Schedule builder */}
       <section className="card animate-fade-in">
@@ -257,14 +392,19 @@ export default async function LectureDayPage({ params }: { params: Promise<{ id:
                         {l.subject.academicYear.name}
                       </div>
                     </td>
-                    <td>{l.lecturer ? l.lecturer.name : <span style={{ color: "var(--text-tertiary)" }}>—</span>}</td>
+                    <td>
+                      {l.lecturer ? l.lecturer.name : (
+                        <span style={{ color: "var(--text-tertiary)" }}>—</span>
+                      )}
+                    </td>
                     <td>
                       <div style={{ display: "flex", gap: "0.3rem", flexWrap: "wrap" }}>
                         {idx > 0 && (
                           <form action={moveLecture}>
                             <input type="hidden" name="id" value={l.id} />
                             <input type="hidden" name="direction" value="up" />
-                            <button type="submit" className="btn btn-secondary" style={{ padding: "0.3rem 0.6rem", fontSize: "0.85rem" }} title="فوق">
+                            <button type="submit" className="btn btn-secondary"
+                              style={{ padding: "0.3rem 0.6rem", fontSize: "0.85rem" }} title="فوق">
                               ↑
                             </button>
                           </form>
@@ -273,7 +413,8 @@ export default async function LectureDayPage({ params }: { params: Promise<{ id:
                           <form action={moveLecture}>
                             <input type="hidden" name="id" value={l.id} />
                             <input type="hidden" name="direction" value="down" />
-                            <button type="submit" className="btn btn-secondary" style={{ padding: "0.3rem 0.6rem", fontSize: "0.85rem" }} title="تحت">
+                            <button type="submit" className="btn btn-secondary"
+                              style={{ padding: "0.3rem 0.6rem", fontSize: "0.85rem" }} title="تحت">
                               ↓
                             </button>
                           </form>
@@ -295,10 +436,10 @@ export default async function LectureDayPage({ params }: { params: Promise<{ id:
 
         <details>
           <summary
-            className="btn btn-primary"
+            className="btn btn-secondary"
             style={{ cursor: "pointer", padding: "0.6rem 1rem", display: "inline-flex" }}
           >
-            + إضافة محاضرة جديدة
+            + إضافة محاضرة يدوياً
           </summary>
           <form
             action={addLecture}
