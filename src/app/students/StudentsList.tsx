@@ -20,11 +20,13 @@ type Props = {
   years: Year[];
   deleteAction: (formData: FormData) => Promise<void>;
   canViewFemale: boolean;
+  tgLinkedIds?: string[];
 };
 
 type GenderFilter = "ALL" | "MALE" | "FEMALE";
 
-export default function StudentsList({ students, years, deleteAction, canViewFemale }: Props) {
+export default function StudentsList({ students, years, deleteAction, canViewFemale, tgLinkedIds = [] }: Props) {
+  const tgSet = useMemo(() => new Set(tgLinkedIds), [tgLinkedIds]);
   const [selectedYearId, setSelectedYearId] = useState<string>(""); // "" = all
   const [genderFilter, setGenderFilter] = useState<GenderFilter>("ALL");
   const [query, setQuery] = useState("");
@@ -122,6 +124,7 @@ export default function StudentsList({ students, years, deleteAction, canViewFem
             <th>اسم المستخدم</th>
             <th>النوع</th>
             {showYearColumn && <th>السنة الدراسية</th>}
+            <th>Telegram</th>
             <th>إجراءات</th>
           </tr>
         </thead>
@@ -162,6 +165,13 @@ export default function StudentsList({ students, years, deleteAction, canViewFem
                   </span>
                 </td>
               )}
+              <td>
+                {tgSet.has(student.id) ? (
+                  <span className="status-badge status-present" style={{ fontSize: "0.8rem" }}>✓ مربوط</span>
+                ) : (
+                  <span className="status-badge" style={{ backgroundColor: "var(--bg-tertiary)", color: "var(--text-secondary)", fontSize: "0.8rem" }}>— غير مربوط</span>
+                )}
+              </td>
               <td>
                 <div style={{ display: "flex", gap: "0.5rem" }}>
                   <Link

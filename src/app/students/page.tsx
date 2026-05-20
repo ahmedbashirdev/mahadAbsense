@@ -237,6 +237,12 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
     orderBy: { createdAt: 'desc' }
   });
 
+  const tgSubs = await prisma.telegramSubscription.findMany({
+    where: { userType: "STUDENT", refId: { in: students.map((s) => s.id) } },
+    select: { refId: true },
+  });
+  const tgLinkedIds = new Set(tgSubs.map((s) => s.refId));
+
   // Build the merge candidate list when editing: other students in the same
   // year + gender as the one being edited (most likely a duplicate).
   let mergeCandidates: { id: string; name: string; username: string | null; createdAt: Date }[] = [];
@@ -433,6 +439,7 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
             years={years}
             deleteAction={deleteStudent}
             canViewFemale={access.canViewFemale}
+            tgLinkedIds={Array.from(tgLinkedIds)}
           />
         </section>
       </div>
