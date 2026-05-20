@@ -41,12 +41,13 @@ export async function notifyLecturersToConfirm(lectureDayId: string) {
   const subByLecturer = new Map(subs.map((s) => [s.refId, s.chatId]));
 
   let sent = 0;
-  let skipped = 0;
+  let skippedNoTelegram = 0;
+  let skippedConfirmed = 0;
   let failed = 0;
   for (const a of day.availabilities) {
     const chatId = subByLecturer.get(a.lecturerId);
-    if (!chatId) { skipped++; continue; }
-    if (a.status === "CONFIRMED") { skipped++; continue; }
+    if (!chatId) { skippedNoTelegram++; continue; }
+    if (a.status === "CONFIRMED" || a.status === "DECLINED") { skippedConfirmed++; continue; }
 
     const link = APP_URL ? `${APP_URL}/me-lecturer` : "";
     const text = [
@@ -65,10 +66,10 @@ export async function notifyLecturersToConfirm(lectureDayId: string) {
 
   await logActivity(
     "إرسال طلب تأكيد محاضرين",
-    `يوم ${dateLabel}: تم إرسال ${sent}، تم تخطي ${skipped}، فشل ${failed}`
+    `يوم ${dateLabel}: تم إرسال ${sent}، ردّوا بالفعل ${skippedConfirmed}، بدون Telegram ${skippedNoTelegram}، فشل ${failed}`
   );
 
-  return { ok: true, sent, skipped, failed };
+  return { ok: true, sent, skippedNoTelegram, skippedConfirmed, failed };
 }
 
 /**

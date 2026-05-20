@@ -7,6 +7,8 @@ type Result = {
   ok?: boolean;
   sent?: number;
   skipped?: number;
+  skippedNoTelegram?: number;
+  skippedConfirmed?: number;
   failed?: number;
   error?: string;
 };
@@ -104,13 +106,20 @@ export default function BroadcastButtons({ lectureDayId, canBroadcastStudents }:
             <>
               ✅ تم.
               {typeof result.sent === "number" && <> · أُرسل لـ <strong>{result.sent}</strong></>}
-              {typeof result.skipped === "number" && result.skipped > 0 && (
-                <> · تم تخطي <strong>{result.skipped}</strong> (غير مربوطين بـ Telegram أو معتذرين)</>
+              {typeof result.skippedConfirmed === "number" && result.skippedConfirmed > 0 && (
+                <> · <strong>{result.skippedConfirmed}</strong> ردّوا بالفعل (مؤكد/معتذر)</>
+              )}
+              {typeof result.skippedNoTelegram === "number" && result.skippedNoTelegram > 0 && (
+                <> · <strong>{result.skippedNoTelegram}</strong> غير مربوطين بـ Telegram</>
+              )}
+              {/* fallback for old API shape */}
+              {typeof result.skippedConfirmed === "undefined" && typeof result.skipped === "number" && result.skipped > 0 && (
+                <> · تم تخطي <strong>{result.skipped}</strong></>
               )}
               {typeof result.failed === "number" && result.failed > 0 && (
                 <> · فشل <strong>{result.failed}</strong></>
               )}
-              {result.sent === 0 && result.skipped === 0 && result.failed === 0 && (
+              {result.sent === 0 && !result.skippedNoTelegram && !result.skippedConfirmed && !result.failed && (
                 <> — مفيش مستلمين، تأكد إن المستخدمين ربطوا حساباتهم بـ Telegram.</>
               )}
             </>
