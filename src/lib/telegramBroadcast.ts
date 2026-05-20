@@ -357,6 +357,7 @@ export async function notifyAdminsOfLecturerResponse(availabilityId: string) {
   const declined = eligible.filter((a) => a.status === "DECLINED").length;
   const pending = eligible.filter((a) => a.status === "PENDING").length;
   const allDeclined = eligible.length > 0 && declined === eligible.length;
+  const allResponded = eligible.length > 0 && pending === 0;
 
   // Resolve admin Telegram chat IDs.
   const admins = await prisma.user.findMany({
@@ -376,6 +377,7 @@ export async function notifyAdminsOfLecturerResponse(availabilityId: string) {
 
   let text: string;
   if (allDeclined) {
+    // 🚨 Worst case: every single lecturer declined
     text = [
       `🚨 <b>تنبيه: كل المحاضرين اعتذروا عن اليوم!</b>`,
       ``,
@@ -385,7 +387,21 @@ export async function notifyAdminsOfLecturerResponse(availabilityId: string) {
       `إجمالي المحاضرين: ${eligible.length}`,
       `جميعهم اعتذروا. يُنصح بإلغاء اليوم أو إعادة الجدولة.${dayLink}`,
     ].filter(Boolean).join("\n");
+  } else if (allResponded) {
+    // ✅ All responses are in — prompt admin to build and publish the schedule
+    text = [
+      `✅ <b>كل المحاضرين ردّوا — الجدول جاهز للإعداد!</b>`,
+      ``,
+      `📅 يوم: <b>${escapeHtml(dateLabel)}</b>`,
+      day.label ? `(${escapeHtml(day.label)})` : "",
+      ``,
+      `الحالة النهائية:`,
+      `   ✓ ${confirmed} مؤكد · ✗ ${declined} معتذر`,
+      ``,
+      `يمكنك الآن رتّب جدول المحاضرات، ثم انشره وابعته للطلاب.${dayLink}`,
+    ].filter(Boolean).join("\n");
   } else {
+    // Regular per-response update
     text = [
       `ℹ️ <b>تحديث حالة محاضر</b>`,
       ``,
@@ -401,7 +417,7 @@ export async function notifyAdminsOfLecturerResponse(availabilityId: string) {
   }
 
   const r = await broadcastTelegramMessage(subs.map((s) => s.chatId), text);
-  return { ok: true, sent: r.sent, failed: r.failed, allDeclined };
+  return { ok: true, sent: r.sent, failed: r.failed, allDeclined, allResponded };
 }
 
 /** Helper for the Telegram deep-link button (used by client components). */
