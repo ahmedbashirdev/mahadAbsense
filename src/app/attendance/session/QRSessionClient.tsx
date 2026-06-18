@@ -193,7 +193,7 @@ export default function QRSessionClient({ initialYears }: { initialYears: Year[]
             لا يوجد طلاب في هذه السنة.
           </p>
         ) : (
-          <div style={{ overflowX: "auto" }}>
+          <div className="table-responsive-cards" style={{ overflowX: "auto" }}>
             <table>
               <thead>
                 <tr>
@@ -204,8 +204,8 @@ export default function QRSessionClient({ initialYears }: { initialYears: Year[]
               <tbody>
                 {students.map((s) => (
                   <tr key={s.id}>
-                    <td style={{ fontWeight: 600 }}>{s.name}</td>
-                    <td style={{ textAlign: "center" }}>
+                    <td data-label="الطالب" style={{ fontWeight: 600 }}>{s.name}</td>
+                    <td data-label="الحالة" style={{ textAlign: "center" }}>
                       {s.status === "PRESENT" ? (
                         <span className="status-badge status-present">✓ حاضر</span>
                       ) : s.status === "ABSENT" ? (

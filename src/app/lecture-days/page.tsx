@@ -72,18 +72,18 @@ export default async function LectureDaysPage() {
     const pending = d.availabilities.filter((a) => a.status === "PENDING").length;
     return (
       <tr key={d.id}>
-        <td style={{ fontWeight: 600 }}>
+        <td data-label="التاريخ" style={{ fontWeight: 600 }}>
           {new Date(d.date).toLocaleDateString("ar-EG", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
         </td>
-        <td style={{ color: "var(--text-secondary)" }}>{d.label || "—"}</td>
-        <td>
+        <td data-label="الوصف" style={{ color: "var(--text-secondary)" }}>{d.label || "—"}</td>
+        <td data-label="الردود">
           <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
             <span className="status-badge status-present">✓ {confirmed}</span>
             <span className="status-badge status-absent">✗ {declined}</span>
             <span className="status-badge status-excused">⏳ {pending}</span>
           </div>
         </td>
-        <td>
+        <td data-label="الحالة">
           {d.isPublished ? (
             <span className="status-badge status-present">✓ منشور</span>
           ) : (
@@ -92,10 +92,10 @@ export default async function LectureDaysPage() {
             </span>
           )}
         </td>
-        <td>
+        <td data-label="المحاضرات">
           <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>{d.lectures.length} محاضرة</span>
         </td>
-        <td>
+        <td data-label="إجراءات">
           <div style={{ display: "flex", gap: "0.4rem" }}>
             <Link
               href={`/lecture-days/${d.id}`}
@@ -153,7 +153,7 @@ export default async function LectureDaysPage() {
               لا توجد أيام مقررة قادمة.
             </p>
           ) : (
-            <div style={{ overflowX: "auto" }}>
+            <div className="table-responsive-cards" style={{ overflowX: "auto" }}>
               <table>
                 <thead>
                   <tr>
@@ -175,7 +175,7 @@ export default async function LectureDaysPage() {
       {past.length > 0 && (
         <section className="card animate-fade-in" style={{ animationDelay: "0.3s", marginTop: "1.5rem" }}>
           <h3 style={{ marginBottom: "1rem", fontWeight: 700 }}>الأيام السابقة</h3>
-          <div style={{ overflowX: "auto" }}>
+          <div className="table-responsive-cards" style={{ overflowX: "auto" }}>
             <table>
               <thead>
                 <tr>

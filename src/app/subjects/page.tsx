@@ -97,7 +97,7 @@ export default async function SubjectsPage({ searchParams }: { searchParams: Pro
       <section className="card animate-fade-in" style={{ animationDelay: '0.1s' }}>
         <h3 style={{ marginBottom: '1.5rem', fontWeight: 700 }}>قائمة المواد</h3>
         {subjects.length > 0 ? (
-          <div style={{ overflowX: 'auto' }}>
+          <div className="table-responsive-cards" style={{ overflowX: 'auto' }}>
             <table>
               <thead>
                 <tr>

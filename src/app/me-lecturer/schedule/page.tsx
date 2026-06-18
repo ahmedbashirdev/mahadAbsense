@@ -71,7 +71,7 @@ export default async function LecturerSchedulePage() {
           </span>
         )}
       </div>
-      <div style={{ overflowX: "auto" }}>
+      <div className="table-responsive-cards" style={{ overflowX: "auto" }}>
         <table>
           <thead>
             <tr>
@@ -84,12 +84,12 @@ export default async function LecturerSchedulePage() {
           <tbody>
             {g.items.map((l) => (
               <tr key={l.id}>
-                <td style={{ fontWeight: 700 }}>{l.order}</td>
-                <td dir="ltr">
+                <td data-label="الترتيب" style={{ fontWeight: 700 }}>{l.order}</td>
+                <td data-label="الوقت" dir="ltr">
                   {l.startTime} – {l.endTime}
                 </td>
-                <td style={{ fontWeight: 600 }}>{l.subject.name}</td>
-                <td>
+                <td data-label="المادة" style={{ fontWeight: 600 }}>{l.subject.name}</td>
+                <td data-label="السنة">
                   <span className="status-badge" style={{ backgroundColor: "var(--bg-tertiary)", color: "var(--text-primary)" }}>
                     {l.subject.academicYear.name}
                   </span>

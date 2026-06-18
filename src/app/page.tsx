@@ -58,7 +58,7 @@ export default async function Home() {
       <section className="card animate-fade-in" style={{ animationDelay: '0.4s' }}>
         <h2 style={{ fontSize: '1.25rem', marginBottom: '1.5rem' }}>آخر عمليات تسجيل الغياب</h2>
         {recentAttendance.length > 0 ? (
-          <div style={{ overflowX: 'auto' }}>
+          <div className="table-responsive-cards" style={{ overflowX: 'auto' }}>
             <table>
               <thead>
                 <tr>
@@ -71,10 +71,10 @@ export default async function Home() {
               <tbody>
                 {recentAttendance.map(att => (
                   <tr key={att.id}>
-                    <td style={{ fontWeight: 500 }}>{att.student.name}</td>
-                    <td>{att.subject.name}</td>
-                    <td>{att.date.toLocaleDateString('ar-EG')}</td>
-                    <td>
+                    <td data-label="الطالب" style={{ fontWeight: 500 }}>{att.student.name}</td>
+                    <td data-label="المادة">{att.subject.name}</td>
+                    <td data-label="التاريخ">{att.date.toLocaleDateString('ar-EG')}</td>
+                    <td data-label="الحالة">
                       <span className={`status-badge status-${att.status.toLowerCase()}`}>
                         {att.status === 'PRESENT' ? 'حاضر' : att.status === 'ABSENT' ? 'غائب' : 'مستأذن'}
                       </span>

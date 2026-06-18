@@ -86,7 +86,7 @@ export default async function YearsPage({ searchParams }: { searchParams: Promis
       <section className="card animate-fade-in" style={{ animationDelay: '0.1s' }}>
         <h3 style={{ marginBottom: '1.5rem', fontWeight: 700 }}>قائمة السنوات</h3>
         {years.length > 0 ? (
-          <div style={{ overflowX: 'auto' }}>
+          <div className="table-responsive-cards" style={{ overflowX: 'auto' }}>
             <table>
               <thead>
                 <tr>
@@ -98,9 +98,9 @@ export default async function YearsPage({ searchParams }: { searchParams: Promis
               <tbody>
                 {years.map(year => (
                   <tr key={year.id}>
-                    <td style={{ fontWeight: 600 }}>{year.name}</td>
-                    <td>{year.order}</td>
-                    <td>
+                    <td data-label="الاسم" style={{ fontWeight: 600 }}>{year.name}</td>
+                    <td data-label="الترتيب">{year.order}</td>
+                    <td data-label="إجراءات">
                       <div style={{ display: 'flex', gap: '0.5rem' }}>
                         <Link href={`/years?edit=${year.id}`} className="btn btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>
                           <Edit size={14} /> تعديل

@@ -203,7 +203,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
 
         <section className="card animate-fade-in" style={{ animationDelay: '0.2s' }}>
           <h3 style={{ marginBottom: '1.5rem', fontWeight: 700 }}>الحسابات المسجلة</h3>
-          <div style={{ overflowX: 'auto' }}>
+          <div className="table-responsive-cards" style={{ overflowX: 'auto' }}>
             <table>
               <thead>
                 <tr>
@@ -217,14 +217,14 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
               <tbody>
                 {users.map(u => (
                   <tr key={u.id}>
-                    <td style={{ fontWeight: 600 }}>{u.name}</td>
-                    <td>{u.username}</td>
-                    <td>
+                    <td data-label="الاسم" style={{ fontWeight: 600 }}>{u.name}</td>
+                    <td data-label="اسم الدخول">{u.username}</td>
+                    <td data-label="الدور">
                        <span className="status-badge" style={{ backgroundColor: u.role === 'ADMIN' ? 'rgba(59, 130, 246, 0.1)' : 'var(--bg-tertiary)', color: u.role === 'ADMIN' ? 'var(--accent-primary)' : 'var(--text-secondary)' }}>
                            {u.role === 'ADMIN' ? 'مدير' : 'موظف'}
                        </span>
                     </td>
-                    <td>
+                    <td data-label="الصلاحيات">
                       {u.role === 'ADMIN' ? (
                         <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>كامل</span>
                       ) : u.canViewFemale ? (
@@ -237,7 +237,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
                         <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>ذكور فقط</span>
                       )}
                     </td>
-                    <td>
+                    <td data-label="إجراءات">
                       <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                         <Link href={`/users?edit=${u.id}`} className="btn" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)', padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>
                           تعديل

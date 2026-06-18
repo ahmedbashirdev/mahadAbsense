@@ -372,7 +372,7 @@ export default async function LecturersPage({ searchParams }: { searchParams: Pr
               لم يتم إضافة أي محاضر بعد.
             </p>
           ) : (
-            <div style={{ overflowX: "auto" }}>
+            <div className="table-responsive-cards" style={{ overflowX: "auto" }}>
               <table>
                 <thead>
                   <tr>
@@ -389,11 +389,11 @@ export default async function LecturersPage({ searchParams }: { searchParams: Pr
                     const tg = tgByLecturer.get(l.id);
                     return (
                     <tr key={l.id}>
-                      <td style={{ fontWeight: 600 }}>{l.name}</td>
-                      <td style={{ color: "var(--text-secondary)" }} dir="ltr">
+                      <td data-label="الاسم" style={{ fontWeight: 600 }}>{l.name}</td>
+                      <td data-label="اسم الدخول" style={{ color: "var(--text-secondary)" }} dir="ltr">
                         {l.username ? `@${l.username}` : "-"}
                       </td>
-                      <td>
+                      <td data-label="الحالة">
                         {l.approvalStatus === "PENDING" ? (
                           <span className="status-badge status-excused">⏳ بانتظار</span>
                         ) : l.isActive ? (
@@ -402,7 +402,7 @@ export default async function LecturersPage({ searchParams }: { searchParams: Pr
                           <span className="status-badge status-absent">⏸ موقوف</span>
                         )}
                       </td>
-                      <td>
+                      <td data-label="Telegram">
                         {tg ? (
                           <span className="status-badge status-present" style={{ fontSize: "0.8rem" }}>
                             ✓ {tg.firstName || tg.username || "مربوط"}
@@ -413,12 +413,12 @@ export default async function LecturersPage({ searchParams }: { searchParams: Pr
                           </span>
                         )}
                       </td>
-                      <td style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                      <td data-label="المواد" style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
                         {l.subjects.length === 0
                           ? "—"
                           : l.subjects.map((s) => `${s.name} (${s.academicYear.name})`).join("، ")}
                       </td>
-                      <td>
+                      <td data-label="إجراءات">
                         <Link
                           href={`/lecturers?edit=${l.id}`}
                           className="btn"

@@ -263,7 +263,7 @@ export default async function LectureDayPage({ params }: { params: Promise<{ id:
         {day.availabilities.length === 0 ? (
           <p style={{ color: "var(--text-secondary)" }}>لا يوجد محاضرين مرتبطين باليوم.</p>
         ) : (
-          <div style={{ overflowX: "auto" }}>
+          <div className="table-responsive-cards" style={{ overflowX: "auto" }}>
             <table>
               <thead>
                 <tr>
@@ -283,8 +283,8 @@ export default async function LectureDayPage({ params }: { params: Promise<{ id:
 
                   return (
                     <tr key={a.id}>
-                      <td style={{ fontWeight: 600 }}>{a.lecturer.name}</td>
-                      <td>
+                      <td data-label="المحاضر" style={{ fontWeight: 600 }}>{a.lecturer.name}</td>
+                      <td data-label="الحالة">
                         {a.status === "CONFIRMED" && (
                           <span className="status-badge status-present">✓ مؤكد</span>
                         )}
@@ -295,10 +295,10 @@ export default async function LectureDayPage({ params }: { params: Promise<{ id:
                           <span className="status-badge status-excused">⏳ بانتظار</span>
                         )}
                       </td>
-                      <td style={{ color: "var(--text-secondary)", fontSize: "0.85rem" }}>
+                      <td data-label="السبب" style={{ color: "var(--text-secondary)", fontSize: "0.85rem" }}>
                         {a.reason || "—"}
                       </td>
-                      <td style={{ fontSize: "0.85rem" }}>
+                      <td data-label="المواد المخططة" style={{ fontSize: "0.85rem" }}>
                         {a.status === "CONFIRMED" ? (
                           plannedSubjects.length > 0 ? (
                             <span style={{ color: "var(--success, #10b981)", fontWeight: 600 }}>
@@ -423,7 +423,7 @@ export default async function LectureDayPage({ params }: { params: Promise<{ id:
         {day.lectures.length === 0 ? (
           <p style={{ color: "var(--text-secondary)", padding: "1rem 0" }}>لم يتم إضافة محاضرات بعد.</p>
         ) : (
-          <div style={{ overflowX: "auto", marginBottom: "1.5rem" }}>
+          <div className="table-responsive-cards" style={{ overflowX: "auto", marginBottom: "1.5rem" }}>
             <table>
               <thead>
                 <tr>
@@ -437,22 +437,22 @@ export default async function LectureDayPage({ params }: { params: Promise<{ id:
               <tbody>
                 {day.lectures.map((l, idx) => (
                   <tr key={l.id}>
-                    <td style={{ fontWeight: 700 }}>{l.order}</td>
-                    <td dir="ltr">
+                    <td data-label="الترتيب" style={{ fontWeight: 700 }}>{l.order}</td>
+                    <td data-label="الوقت" dir="ltr">
                       {l.startTime} – {l.endTime}
                     </td>
-                    <td>
+                    <td data-label="المادة">
                       <div style={{ fontWeight: 600 }}>{l.subject.name}</div>
                       <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
                         {l.subject.academicYear.name}
                       </div>
                     </td>
-                    <td>
+                    <td data-label="المحاضر">
                       {l.lecturer ? l.lecturer.name : (
                         <span style={{ color: "var(--text-tertiary)" }}>—</span>
                       )}
                     </td>
-                    <td>
+                    <td data-label="إجراءات">
                       <div style={{ display: "flex", gap: "0.3rem", flexWrap: "wrap" }}>
                         {idx > 0 && (
                           <form action={moveLecture}>

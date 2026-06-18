@@ -32,7 +32,7 @@ export default async function ActivityPage() {
 
       <section className="card animate-fade-in">
         {activities.length > 0 ? (
-          <div style={{ overflowX: 'auto' }}>
+          <div className="table-responsive-cards" style={{ overflowX: 'auto' }}>
             <table>
               <thead>
                 <tr>
@@ -45,19 +45,19 @@ export default async function ActivityPage() {
               <tbody>
                 {activities.map(log => (
                   <tr key={log.id}>
-                    <td style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }} dir="ltr" align="right">
+                    <td data-label="الوقت" style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }} dir="ltr" align="right">
                        {new Date(log.createdAt).toLocaleString('ar-EG')}
                     </td>
-                    <td style={{ fontWeight: 600 }}>
+                    <td data-label="المسؤول" style={{ fontWeight: 600 }}>
                        {log.user.name} <br/>
                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>@{log.user.username}</span>
                     </td>
-                    <td>
+                    <td data-label="الإجراء">
                       <span className="status-badge" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}>
                         {log.action}
                       </span>
                     </td>
-                    <td style={{ color: 'var(--text-secondary)' }}>{log.details || '-'}</td>
+                    <td data-label="التفاصيل" style={{ color: 'var(--text-secondary)' }}>{log.details || '-'}</td>
                   </tr>
                 ))}
               </tbody>

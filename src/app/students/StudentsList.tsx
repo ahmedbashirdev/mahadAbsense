@@ -116,7 +116,7 @@ export default function StudentsList({ students, years, deleteAction, canViewFem
   };
 
   const renderTable = (rows: Student[], showYearColumn: boolean) => (
-    <div style={{ overflowX: "auto" }}>
+    <div className="table-responsive-cards" style={{ overflowX: "auto" }}>
       <table>
         <thead>
           <tr>
@@ -131,7 +131,7 @@ export default function StudentsList({ students, years, deleteAction, canViewFem
         <tbody>
           {rows.map((student) => (
             <tr key={student.id}>
-              <td style={{ fontWeight: 600 }}>
+              <td data-label="الاسم" style={{ fontWeight: 600 }}>
                 {student.name}
                 {student.username && !student.isActive && (
                   <span
@@ -147,12 +147,12 @@ export default function StudentsList({ students, years, deleteAction, canViewFem
                   </span>
                 )}
               </td>
-              <td style={{ color: "var(--text-secondary)" }} dir="ltr">
+              <td data-label="اسم المستخدم" style={{ color: "var(--text-secondary)" }} dir="ltr">
                 {student.username ? `@${student.username}` : "-"}
               </td>
-              <td>{renderGenderBadge(student.gender)}</td>
+              <td data-label="النوع">{renderGenderBadge(student.gender)}</td>
               {showYearColumn && (
-                <td>
+                <td data-label="السنة الدراسية">
                   <span
                     className="status-badge"
                     style={{
@@ -165,14 +165,14 @@ export default function StudentsList({ students, years, deleteAction, canViewFem
                   </span>
                 </td>
               )}
-              <td>
+              <td data-label="Telegram">
                 {tgSet.has(student.id) ? (
                   <span className="status-badge status-present" style={{ fontSize: "0.8rem" }}>✓ مربوط</span>
                 ) : (
                   <span className="status-badge" style={{ backgroundColor: "var(--bg-tertiary)", color: "var(--text-secondary)", fontSize: "0.8rem" }}>— غير مربوط</span>
                 )}
               </td>
-              <td>
+              <td data-label="إجراءات">
                 <div style={{ display: "flex", gap: "0.5rem" }}>
                   <Link
                     href={`/students?edit=${student.id}`}

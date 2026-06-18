@@ -98,7 +98,7 @@ export default function ExamResultsClient({ examId, maxScore, passScore, student
         اكتب الدرجة لكل طالب ثم اضغط <strong>حفظ النتائج</strong>. سيبان للطلاب على حساباتهم، ويمكنك إرسال إشعار Telegram لكل طالب أو للجميع. ترك الخانة فارغة يحذف نتيجة الطالب.
       </p>
 
-      <div style={{ overflowX: "auto" }}>
+      <div className="table-responsive-cards" style={{ overflowX: "auto" }}>
         <table>
           <thead>
             <tr>
