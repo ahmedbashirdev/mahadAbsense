@@ -54,6 +54,8 @@ model Subject {
   lecturers    Lecturer[]   @relation("LecturerSubjects")
   // Concrete lecture instances scheduled for this subject.
   lectures     Lecture[]
+  // Exams scheduled for this subject (one per term).
+  exams        Exam[]
   // Curriculum tracking
   bookName     String?      // The book assigned to this subject
   targetPage   Int?         // The page to reach by the end of the term
@@ -76,6 +78,7 @@ model Student {
   yearId       String
   academicYear AcademicYear @relation(fields: [yearId], references: [id], onDelete: Cascade)
   attendances  Attendance[]
+  examResults  ExamResult[]
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 }
@@ -227,4 +230,40 @@ model Attendance {
   updatedAt DateTime @updatedAt
 
   @@unique([date, studentId, subjectId])
+}
+
+// A scheduled exam for a subject. Subjects that span two terms have one exam
+// per term (term = 1 or 2); one-term subjects have a single exam (term = 1).
+model Exam {
+  id        String       @id @default(cuid())
+  subjectId String
+  subject   Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  term      Int          @default(1) // 1 = الترم الأول, 2 = الترم الثاني
+  title     String?      // optional label, e.g. "اختبار نهاية الترم"
+  date      DateTime     // exam date
+  startTime String?      // optional HH:MM
+  endTime   String?      // optional HH:MM
+  location  String?      // optional location/room
+  maxScore  Float        @default(100) // النهاية العظمى
+  passScore Float        @default(50)  // درجة النجاح (out of maxScore)
+  results   ExamResult[]
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+}
+
+// A single student's result in an exam.
+model ExamResult {
+  id         String    @id @default(cuid())
+  examId     String
+  exam       Exam      @relation(fields: [examId], references: [id], onDelete: Cascade)
+  studentId  String
+  student    Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  score      Float     // الدرجة المحصلة
+  notes      String?
+  // Set when the student has been notified of this result via Telegram.
+  notifiedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@unique([examId, studentId])
 }

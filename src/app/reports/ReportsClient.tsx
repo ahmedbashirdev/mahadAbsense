@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getYearReport } from "./actions";
 
 type Year = { id: string; name: string };
@@ -25,7 +25,21 @@ type ReportData = {
 };
 
 export default function ReportsClient({ years }: { years: Year[] }) {
-  const [selectedYearId, setSelectedYearId] = useState("");
+  // Default the date range to the current month (first → last day).
+  const monthRange = useMemo(() => {
+    const now = new Date();
+    const first = new Date(now.getFullYear(), now.getMonth(), 1);
+    const last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const fmt = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    return { from: fmt(first), to: fmt(last) };
+  }, []);
+
+  // Default to the first year so the report shows immediately without the
+  // admin having to pick a year first.
+  const [selectedYearId, setSelectedYearId] = useState(years[0]?.id ?? "");
+  const [fromDate, setFromDate] = useState(monthRange.from);
+  const [toDate, setToDate] = useState(monthRange.to);
   const [loading, setLoading] = useState(false);
   const [reportData, setReportData] = useState<ReportData | null>(null);
 
@@ -36,7 +50,7 @@ export default function ReportsClient({ years }: { years: Year[] }) {
     }
     let cancelled = false;
     Promise.resolve().then(() => setLoading(true));
-    getYearReport(selectedYearId).then((data) => {
+    getYearReport(selectedYearId, fromDate || undefined, toDate || undefined).then((data) => {
       if (cancelled) return;
       // Cast: server action returns prisma rows whose Date fields are real
       // Date instances after Next serializes them. We pass through unchanged.
@@ -44,18 +58,36 @@ export default function ReportsClient({ years }: { years: Year[] }) {
       setLoading(false);
     });
     return () => { cancelled = true; };
-  }, [selectedYearId]);
+  }, [selectedYearId, fromDate, toDate]);
 
   return (
     <div className="card animate-fade-in" style={{ animationDelay: '0.1s' }}>
-      <div style={{ marginBottom: '2rem' }}>
-        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.95rem', fontWeight: 600 }}>اختر المرحلة الدراسية</label>
-        <select className="input-field" style={{ maxWidth: '400px' }} value={selectedYearId} onChange={(e) => setSelectedYearId(e.target.value)}>
-          <option value="">اختر السنة لتبدأ...</option>
-          {years.map((y) => (
-            <option key={y.id} value={y.id}>{y.name}</option>
-          ))}
-        </select>
+      <div style={{ marginBottom: '2rem', display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'flex-end' }}>
+        <div>
+          <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.95rem', fontWeight: 600 }}>المرحلة الدراسية</label>
+          <select className="input-field" style={{ minWidth: '220px' }} value={selectedYearId} onChange={(e) => setSelectedYearId(e.target.value)}>
+            {years.length === 0 && <option value="">لا توجد سنوات</option>}
+            {years.map((y) => (
+              <option key={y.id} value={y.id}>{y.name}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.95rem', fontWeight: 600 }}>من تاريخ</label>
+          <input type="date" className="input-field" value={fromDate} max={toDate || undefined} onChange={(e) => setFromDate(e.target.value)} />
+        </div>
+        <div>
+          <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.95rem', fontWeight: 600 }}>إلى تاريخ</label>
+          <input type="date" className="input-field" value={toDate} min={fromDate || undefined} onChange={(e) => setToDate(e.target.value)} />
+        </div>
+        <button
+          type="button"
+          className="input-field"
+          style={{ cursor: 'pointer', fontWeight: 600, width: 'auto', padding: '0.6rem 1rem' }}
+          onClick={() => { setFromDate(monthRange.from); setToDate(monthRange.to); }}
+        >
+          الشهر الحالي
+        </button>
       </div>
 
       {loading && <p style={{ color: 'var(--text-secondary)' }}>جاري سحب بيانات الدفعة والمحاضرات...</p>}
@@ -70,8 +102,11 @@ export default function ReportsClient({ years }: { years: Year[] }) {
                     <th style={{ position: 'sticky', right: 0, backgroundColor: 'var(--bg-tertiary)', zIndex: 10, borderLeft: '1px solid var(--border-color)' }}>الطالب</th>
                     {reportData.lectures.map((lec) => (
                       <th key={lec.id} style={{ textAlign: 'center', backgroundColor: 'var(--bg-tertiary)' }}>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                          {new Date(lec.date).toLocaleDateString('ar-EG', { month: 'short', day: 'numeric' })}
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                          {new Date(lec.date).toLocaleDateString('ar-EG', { weekday: 'long' })}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                          {new Date(lec.date).toLocaleDateString('ar-EG', { day: 'numeric', month: 'short', year: 'numeric' })}
                         </div>
                         <div style={{ fontSize: '0.9rem' }}>{lec.subjectName}</div>
                       </th>
@@ -130,7 +165,7 @@ export default function ReportsClient({ years }: { years: Year[] }) {
               </table>
             </div>
           ) : (
-            <p style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '2rem 0' }}>لا يوجد سجل غياب لأي محاضرة في هذه السنة حتى الآن.</p>
+            <p style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '2rem 0' }}>لا يوجد سجل غياب في الفترة المختارة. جرّب توسيع نطاق التاريخ أو تغيير المرحلة.</p>
           )}
 
           {reportData.lectures.length > 0 && (

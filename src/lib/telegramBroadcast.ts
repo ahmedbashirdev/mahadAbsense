@@ -383,6 +383,31 @@ export async function notifyAdminsOfLecturerResponse(availabilityId: string) {
   const reasonLine = availability.reason ? `\n📝 السبب: ${escapeHtml(availability.reason)}` : "";
   const lecturerStatusText = availability.status === "CONFIRMED" ? "✅ أُكد الحضور" : "❌ اعتذر عن الحضور";
 
+  // When the lecturer confirmed, show the subjects they chose (with academic
+  // year next to each) so the admin knows exactly what will be taught.
+  let subjectsLine = "";
+  if (availability.status === "CONFIRMED") {
+    let plannedIds: string[] = [];
+    try {
+      plannedIds = JSON.parse(availability.plannedSubjectIds || "[]");
+    } catch {
+      plannedIds = [];
+    }
+    if (plannedIds.length > 0) {
+      const subjects = await prisma.subject.findMany({
+        where: { id: { in: plannedIds } },
+        select: { name: true, academicYear: { select: { name: true } } },
+      });
+      if (subjects.length > 0) {
+        subjectsLine =
+          `📚 المواد المختارة:\n` +
+          subjects
+            .map((s) => `   • ${escapeHtml(s.name)} — ${escapeHtml(s.academicYear.name)}`)
+            .join("\n");
+      }
+    }
+  }
+
   let text: string;
   if (allDeclined) {
     // 🚨 Worst case: every single lecturer declined
@@ -403,6 +428,9 @@ export async function notifyAdminsOfLecturerResponse(availabilityId: string) {
       `📅 يوم: <b>${escapeHtml(dateLabel)}</b>`,
       day.label ? `(${escapeHtml(day.label)})` : "",
       ``,
+      `آخر رد — 👨‍🏫 ${escapeHtml(availability.lecturer.name)}: <b>${lecturerStatusText}</b>`,
+      subjectsLine,
+      ``,
       `الحالة النهائية:`,
       `   ✓ ${confirmed} مؤكد · ✗ ${declined} معتذر`,
       ``,
@@ -418,6 +446,7 @@ export async function notifyAdminsOfLecturerResponse(availabilityId: string) {
       day.label ? `(${escapeHtml(day.label)})` : "",
       `الرد: <b>${lecturerStatusText}</b>`,
       availability.status === "DECLINED" ? reasonLine : "",
+      subjectsLine,
       ``,
       `الحالة الإجمالية لليوم:`,
       `   ✓ ${confirmed} مؤكد · ✗ ${declined} معتذر · ⏳ ${pending} لم يرد${dayLink}`,

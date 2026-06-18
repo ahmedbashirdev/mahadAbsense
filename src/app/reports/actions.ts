@@ -2,11 +2,20 @@
 import { prisma } from "@/lib/prisma";
 import { getStudentAccess } from "@/lib/access";
 
-export async function getYearReport(yearId: string) {
+export async function getYearReport(yearId: string, from?: string, to?: string) {
   const access = await getStudentAccess();
   if (!access) {
     return { students: [], lectures: [], attendanceRecords: [] };
   }
+  if (!yearId) {
+    return { students: [], lectures: [], attendanceRecords: [] };
+  }
+
+  // Optional date-range filter (inclusive). Dates come as "YYYY-MM-DD".
+  const dateFilter: { gte?: Date; lte?: Date } = {};
+  if (from) dateFilter.gte = new Date(`${from}T00:00:00.000Z`);
+  if (to) dateFilter.lte = new Date(`${to}T23:59:59.999Z`);
+  const hasDateFilter = Boolean(from || to);
 
   // 1. Get all students for this year (filtered by gender access)
   const students = await prisma.student.findMany({
@@ -14,10 +23,11 @@ export async function getYearReport(yearId: string) {
     orderBy: { name: 'asc' }
   });
 
-  // 2. Get all attendance records for these students
+  // 2. Get all attendance records for these students (within the date range)
   const attendanceRecords = await prisma.attendance.findMany({
     where: {
-      student: { yearId, gender: { in: access.allowedGenders } }
+      student: { yearId, gender: { in: access.allowedGenders } },
+      ...(hasDateFilter ? { date: dateFilter } : {}),
     },
     include: {
       subject: true

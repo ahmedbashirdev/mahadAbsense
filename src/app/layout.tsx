@@ -10,7 +10,7 @@ import { Toaster } from "sonner";
 import { 
   LayoutDashboard, CheckSquare, QrCode, Calendar, BarChart3, 
   CalendarDays, BookOpen, GraduationCap, Presentation, Users, 
-  Activity, Send, Settings 
+  Activity, Send, Settings, ClipboardList 
 } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -44,6 +44,7 @@ export default async function RootLayout({
           <Link href="/attendance/session" className="sidebar-link"><QrCode size={18} /> جلسة QR للحضور</Link>
           <Link href="/lecture-days" className="sidebar-link"><Calendar size={18} /> جدول المحاضرات</Link>
           <Link href="/reports" className="sidebar-link"><BarChart3 size={18} /> تقارير الدفعات</Link>
+          <Link href="/exams" className="sidebar-link"><ClipboardList size={18} /> الاختبارات والنتائج</Link>
 
           <hr className="sidebar-sep" />
 

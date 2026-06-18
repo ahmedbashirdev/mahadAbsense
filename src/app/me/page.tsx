@@ -12,6 +12,10 @@ import {
 
 export const dynamic = "force-dynamic";
 
+function termLabel(term: number) {
+  return term === 2 ? "الترم الثاني" : "الترم الأول";
+}
+
 type SubjectSummary = {
   subjectId: string;
   subjectName: string;
@@ -90,6 +94,32 @@ export default async function StudentHomePage() {
       }
     }
   });
+
+  // Exams for this student's year + this student's results.
+  const yearExams = await prisma.exam.findMany({
+    where: { subject: { yearId: student.yearId } },
+    include: { subject: { select: { name: true } } },
+    orderBy: { date: "asc" },
+  });
+  const myExamResults = await prisma.examResult.findMany({
+    where: { studentId: student.id },
+    include: { exam: { include: { subject: { select: { name: true } } } } },
+  });
+  const examResultsView = myExamResults
+    .map((r) => {
+      const pct = r.exam.maxScore > 0 ? Math.round((r.score / r.exam.maxScore) * 100) : 0;
+      return {
+        id: r.id,
+        subjectName: r.exam.subject.name,
+        term: r.exam.term,
+        date: r.exam.date,
+        score: r.score,
+        maxScore: r.exam.maxScore,
+        pct,
+        passed: r.score >= r.exam.passScore,
+      };
+    })
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   // Per-subject summary
   const summaryMap = new Map<string, SubjectSummary>();
@@ -224,6 +254,92 @@ export default async function StudentHomePage() {
                 </div>
               </div>
             ))}
+          </div>
+        </section>
+      )}
+
+      {/* Exam schedule */}
+      {yearExams.length > 0 && (
+        <section className="card animate-fade-in" style={{ animationDelay: "0.12s", marginBottom: "1.5rem" }}>
+          <h3 style={{ marginBottom: "1rem", fontWeight: 700, display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <CalendarDays size={20} className="text-accent" /> جدول الاختبارات
+          </h3>
+          <div className="table-responsive-cards" style={{ overflowX: "auto" }}>
+            <table>
+              <thead>
+                <tr>
+                  <th>المادة</th>
+                  <th>الترم</th>
+                  <th>التاريخ</th>
+                  <th>الوقت</th>
+                  <th>المكان</th>
+                </tr>
+              </thead>
+              <tbody>
+                {yearExams.map((e) => {
+                  const upcoming = new Date(e.date) >= today;
+                  return (
+                    <tr key={e.id}>
+                      <td data-label="المادة" style={{ fontWeight: 600 }}>
+                        {e.subject.name}
+                        {upcoming && (
+                          <span className="status-badge status-excused" style={{ marginInlineStart: "0.5rem", fontSize: "0.7rem" }}>قادم</span>
+                        )}
+                      </td>
+                      <td data-label="الترم">{termLabel(e.term)}</td>
+                      <td data-label="التاريخ">
+                        {new Date(e.date).toLocaleDateString("ar-EG", { weekday: "long", day: "numeric", month: "long" })}
+                      </td>
+                      <td data-label="الوقت" dir="ltr">
+                        {e.startTime ? `${e.startTime}${e.endTime ? ` – ${e.endTime}` : ""}` : "—"}
+                      </td>
+                      <td data-label="المكان">{e.location || <span style={{ color: "var(--text-tertiary)" }}>—</span>}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {/* Exam results */}
+      {examResultsView.length > 0 && (
+        <section className="card animate-fade-in" style={{ animationDelay: "0.125s", marginBottom: "1.5rem" }}>
+          <h3 style={{ marginBottom: "1rem", fontWeight: 700, display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <BarChart3 size={20} className="text-accent" /> نتائج الاختبارات
+          </h3>
+          <div className="table-responsive-cards" style={{ overflowX: "auto" }}>
+            <table>
+              <thead>
+                <tr>
+                  <th>المادة</th>
+                  <th>الترم</th>
+                  <th style={{ textAlign: "center" }}>الدرجة</th>
+                  <th style={{ textAlign: "center" }}>النسبة</th>
+                  <th style={{ textAlign: "center" }}>الحالة</th>
+                </tr>
+              </thead>
+              <tbody>
+                {examResultsView.map((r) => (
+                  <tr key={r.id}>
+                    <td data-label="المادة" style={{ fontWeight: 600 }}>{r.subjectName}</td>
+                    <td data-label="الترم">{termLabel(r.term)}</td>
+                    <td data-label="الدرجة" style={{ textAlign: "center", fontWeight: 700 }} dir="ltr">{r.score} / {r.maxScore}</td>
+                    <td data-label="النسبة" style={{ textAlign: "center" }}>{r.pct}%</td>
+                    <td data-label="الحالة" style={{ textAlign: "center" }}>
+                      <span className="status-badge" style={{
+                        backgroundColor: r.passed ? "rgba(16,185,129,0.12)" : "rgba(239,68,68,0.12)",
+                        color: r.passed ? "var(--success)" : "var(--danger)",
+                        fontWeight: 700,
+                      }}>
+                        {r.passed ? "ناجح" : "راسب"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </section>
       )}

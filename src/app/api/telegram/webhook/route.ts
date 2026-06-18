@@ -108,7 +108,7 @@ async function handleStartCommand(message: TelegramMessage, code: string) {
  * Build the subject-selection message text + inline keyboard for a session.
  */
 function buildSubjectSelectionMessage(
-  subjects: Array<{ id: string; name: string }>,
+  subjects: Array<{ id: string; name: string; academicYear?: { name: string } | null }>,
   selectedIds: string[],
   dateLabel: string,
 ) {
@@ -124,14 +124,14 @@ function buildSubjectSelectionMessage(
 }
 
 function buildSubjectKeyboard(
-  subjects: Array<{ id: string; name: string }>,
+  subjects: Array<{ id: string; name: string; academicYear?: { name: string } | null }>,
   selectedIds: string[],
   sessId: string,
 ) {
   const selectedSet = new Set(selectedIds);
   const rows = subjects.map((s) => [
     {
-      text: `${selectedSet.has(s.id) ? "☑" : "☐"} ${s.name}`,
+      text: `${selectedSet.has(s.id) ? "☑" : "☐"} ${s.name}${s.academicYear ? ` — ${s.academicYear.name}` : ""}`,
       callback_data: `stog:${sessId}:${s.id}`,
     },
   ]);
@@ -153,7 +153,7 @@ async function handleConfirmAttendance(
   const av = await prisma.lecturerAvailability.findUnique({
     where: { id: avId },
     include: {
-      lecturer: { include: { subjects: { select: { id: true, name: true } } } },
+      lecturer: { include: { subjects: { select: { id: true, name: true, academicYear: { select: { name: true } } } } } },
       lectureDay: { select: { date: true, label: true } },
     },
   });
@@ -305,7 +305,7 @@ async function handleToggleSubject(
   const av = await prisma.lecturerAvailability.findUnique({
     where: { id: sess.availabilityId },
     include: {
-      lecturer: { include: { subjects: { select: { id: true, name: true } } } },
+      lecturer: { include: { subjects: { select: { id: true, name: true, academicYear: { select: { name: true } } } } } },
       lectureDay: { select: { date: true, label: true } },
     },
   });
@@ -348,7 +348,7 @@ async function handleDoneSubjectSelection(
   const av = await prisma.lecturerAvailability.findUnique({
     where: { id: sess.availabilityId },
     include: {
-      lecturer: { include: { subjects: { select: { id: true, name: true } } } },
+      lecturer: { include: { subjects: { select: { id: true, name: true, academicYear: { select: { name: true } } } } } },
       lectureDay: { select: { date: true, label: true } },
     },
   });
@@ -368,7 +368,7 @@ async function handleDoneSubjectSelection(
   const selectedSubjects = av.lecturer.subjects.filter((s) => selectedIds.includes(s.id));
   const subjectLines =
     selectedSubjects.length > 0
-      ? selectedSubjects.map((s) => `  • ${escapeHtml(s.name)}`).join("\n")
+      ? selectedSubjects.map((s) => `  • ${escapeHtml(s.name)}${s.academicYear ? ` — ${escapeHtml(s.academicYear.name)}` : ""}`).join("\n")
       : "  (لم تختر مواد محددة)";
 
   // Update availability to CONFIRMED
