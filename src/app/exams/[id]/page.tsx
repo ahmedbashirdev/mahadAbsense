@@ -3,13 +3,10 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getStaffSession } from "@/lib/auth";
 import { getStudentAccess } from "@/lib/access";
+import { examTypeLabel } from "@/lib/exams";
 import ExamResultsClient from "./ExamResultsClient";
 
 export const dynamic = "force-dynamic";
-
-function termLabel(term: number) {
-  return term === 2 ? "الترم الثاني" : "الترم الأول";
-}
 
 export default async function ExamResultsPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getStaffSession();
@@ -54,7 +51,7 @@ export default async function ExamResultsPage({ params }: { params: Promise<{ id
         <div>
           <h1 className="page-title">نتائج: {exam.subject.name}</h1>
           <p className="page-subtitle">
-            {exam.subject.academicYear.name} · {termLabel(exam.term)} · {dateStr}
+            {exam.subject.academicYear.name} · {examTypeLabel(exam.subject.termType, exam.term, exam.kind)} · {dateStr}
             {exam.title ? ` · ${exam.title}` : ""}
           </p>
         </div>

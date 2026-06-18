@@ -4,13 +4,10 @@ import { revalidatePath } from "next/cache";
 import { getStaffSession } from "@/lib/auth";
 import { logActivity } from "@/lib/logger";
 import { sendTelegramMessage, escapeHtml } from "@/lib/telegram";
-
-function termLabel(term: number) {
-  return term === 2 ? "الترم الثاني" : "الترم الأول";
-}
+import { examTypeLabel } from "@/lib/exams";
 
 function buildResultMessage(
-  exam: { term: number; maxScore: number; passScore: number; date: Date; subject: { name: string; academicYear: { name: string } } },
+  exam: { term: number; kind: string; maxScore: number; passScore: number; date: Date; subject: { name: string; termType: string; academicYear: { name: string } } },
   studentName: string,
   score: number,
 ) {
@@ -21,7 +18,7 @@ function buildResultMessage(
     ``,
     `👤 ${escapeHtml(studentName)}`,
     `📚 ${escapeHtml(exam.subject.name)} — ${escapeHtml(exam.subject.academicYear.name)}`,
-    `🗓️ ${termLabel(exam.term)}`,
+    `🗓️ ${examTypeLabel(exam.subject.termType, exam.term, exam.kind)}`,
     `🎯 الدرجة: <b>${score}</b> من <b>${exam.maxScore}</b> (${pct}%)`,
     `الحالة: <b>${passed ? "✅ ناجح" : "❌ راسب"}</b>`,
   ].join("\n");

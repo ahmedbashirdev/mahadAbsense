@@ -9,12 +9,10 @@ import Modal from "@/components/Modal";
 import ClientForm from "@/components/ClientForm";
 import SubmitButton from "@/components/SubmitButton";
 import { Plus, Edit, ClipboardList } from "lucide-react";
+import { examTypeLabel, parseExamType } from "@/lib/exams";
+import ExamFormFields from "./ExamFormFields";
 
 export const dynamic = "force-dynamic";
-
-function termLabel(term: number) {
-  return term === 2 ? "الترم الثاني" : "الترم الأول";
-}
 
 async function addExam(formData: FormData) {
   "use server"
@@ -22,7 +20,7 @@ async function addExam(formData: FormData) {
   if (!session) return;
 
   const subjectId = (formData.get("subjectId") as string) || "";
-  const term = parseInt((formData.get("term") as string) || "1", 10) || 1;
+  const { term, kind } = parseExamType((formData.get("examType") as string) || "");
   const title = ((formData.get("title") as string) || "").trim() || null;
   const dateStr = (formData.get("date") as string) || "";
   const startTime = ((formData.get("startTime") as string) || "").trim() || null;
@@ -37,6 +35,7 @@ async function addExam(formData: FormData) {
     data: {
       subjectId,
       term,
+      kind,
       title,
       date: new Date(`${dateStr}T00:00:00.000Z`),
       startTime,
@@ -48,7 +47,7 @@ async function addExam(formData: FormData) {
   });
 
   const subject = await prisma.subject.findUnique({ where: { id: subjectId }, select: { name: true } });
-  await logActivity("إضافة اختبار", `اختبار مادة ${subject?.name ?? ""} (${termLabel(term)})`);
+  await logActivity("إضافة اختبار", `اختبار مادة ${subject?.name ?? ""}`);
   revalidatePath("/exams");
   revalidatePath("/me");
 }
@@ -60,7 +59,7 @@ async function updateExam(formData: FormData) {
 
   const id = (formData.get("id") as string) || "";
   const subjectId = (formData.get("subjectId") as string) || "";
-  const term = parseInt((formData.get("term") as string) || "1", 10) || 1;
+  const { term, kind } = parseExamType((formData.get("examType") as string) || "");
   const title = ((formData.get("title") as string) || "").trim() || null;
   const dateStr = (formData.get("date") as string) || "";
   const startTime = ((formData.get("startTime") as string) || "").trim() || null;
@@ -76,6 +75,7 @@ async function updateExam(formData: FormData) {
     data: {
       subjectId,
       term,
+      kind,
       title,
       date: new Date(`${dateStr}T00:00:00.000Z`),
       startTime,
@@ -122,10 +122,12 @@ export default async function ExamsPage({ searchParams }: { searchParams: Promis
     ? await prisma.exam.findUnique({ where: { id: editId } })
     : null;
 
+  const years = await prisma.academicYear.findMany({ orderBy: { order: "asc" } });
   const subjects = await prisma.subject.findMany({
     include: { academicYear: { select: { name: true, order: true } } },
     orderBy: [{ academicYear: { order: "asc" } }, { name: "asc" }],
   });
+  const subjectsForForm = subjects.map((s) => ({ id: s.id, name: s.name, yearId: s.yearId, termType: s.termType }));
 
   const exams = await prisma.exam.findMany({
     include: {
@@ -157,7 +159,7 @@ export default async function ExamsPage({ searchParams }: { searchParams: Promis
               <thead>
                 <tr>
                   <th>المادة</th>
-                  <th>الترم</th>
+                  <th>نوع الاختبار</th>
                   <th>التاريخ</th>
                   <th>الوقت</th>
                   <th>الدرجة العظمى / النجاح</th>
@@ -175,7 +177,7 @@ export default async function ExamsPage({ searchParams }: { searchParams: Promis
                         {ex.title ? ` · ${ex.title}` : ""}
                       </div>
                     </td>
-                    <td data-label="الترم">{termLabel(ex.term)}</td>
+                    <td data-label="الترم">{examTypeLabel(ex.subject.termType, ex.term, ex.kind)}</td>
                     <td data-label="التاريخ">
                       {new Date(ex.date).toLocaleDateString("ar-EG", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
                     </td>
@@ -212,24 +214,13 @@ export default async function ExamsPage({ searchParams }: { searchParams: Promis
         <Modal title="تعديل الاختبار" onCloseRoute="/exams">
           <ClientForm action={updateExam} successMessage="تم تعديل الاختبار بنجاح" style={fieldStyle}>
             <input type="hidden" name="id" value={examToEdit.id} />
-            <div>
-              <label className="field-label">المادة</label>
-              <select name="subjectId" className="input-field" defaultValue={examToEdit.subjectId} required>
-                <option value="">اختر المادة...</option>
-                {subjects.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} — {s.academicYear.name} ({s.termType === "TWO_TERMS" ? "ترمين" : "ترم واحد"})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="field-label">الترم</label>
-              <select name="term" className="input-field" defaultValue={String(examToEdit.term)} required>
-                <option value="1">الترم الأول</option>
-                <option value="2">الترم الثاني</option>
-              </select>
-            </div>
+            <ExamFormFields
+              years={years}
+              subjects={subjectsForForm}
+              defaultYearId={subjectsForForm.find((s) => s.id === examToEdit.subjectId)?.yearId}
+              defaultSubjectId={examToEdit.subjectId}
+              defaultExamType={`${examToEdit.term}:${examToEdit.kind}`}
+            />
             <div>
               <label className="field-label">عنوان الاختبار (اختياري)</label>
               <input type="text" name="title" className="input-field" defaultValue={examToEdit.title || ""} placeholder="مثال: اختبار نهاية الترم" />
@@ -274,24 +265,7 @@ export default async function ExamsPage({ searchParams }: { searchParams: Promis
       {isNew && (
         <Modal title="إضافة اختبار جديد" onCloseRoute="/exams">
           <ClientForm action={addExam} successMessage="تم إضافة الاختبار بنجاح" style={fieldStyle}>
-            <div>
-              <label className="field-label">المادة</label>
-              <select name="subjectId" className="input-field" required defaultValue="">
-                <option value="" disabled>اختر المادة...</option>
-                {subjects.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} — {s.academicYear.name} ({s.termType === "TWO_TERMS" ? "ترمين" : "ترم واحد"})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="field-label">الترم</label>
-              <select name="term" className="input-field" required defaultValue="1">
-                <option value="1">الترم الأول</option>
-                <option value="2">الترم الثاني</option>
-              </select>
-            </div>
+            <ExamFormFields years={years} subjects={subjectsForForm} />
             <div>
               <label className="field-label">عنوان الاختبار (اختياري)</label>
               <input type="text" name="title" className="input-field" placeholder="مثال: اختبار نهاية الترم" />

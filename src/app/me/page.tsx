@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getStudentSession } from "@/lib/auth";
 import { getAbsenceWarningThreshold } from "@/lib/settings";
+import { examTypeLabel } from "@/lib/exams";
 import ConnectTelegram from "@/components/ConnectTelegram";
 import { 
   QrCode, AlertTriangle, CalendarDays, BookOpen, Book, 
@@ -11,10 +12,6 @@ import {
 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
-
-function termLabel(term: number) {
-  return term === 2 ? "الترم الثاني" : "الترم الأول";
-}
 
 type SubjectSummary = {
   subjectId: string;
@@ -98,12 +95,12 @@ export default async function StudentHomePage() {
   // Exams for this student's year + this student's results.
   const yearExams = await prisma.exam.findMany({
     where: { subject: { yearId: student.yearId } },
-    include: { subject: { select: { name: true } } },
+    include: { subject: { select: { name: true, termType: true } } },
     orderBy: { date: "asc" },
   });
   const myExamResults = await prisma.examResult.findMany({
     where: { studentId: student.id },
-    include: { exam: { include: { subject: { select: { name: true } } } } },
+    include: { exam: { include: { subject: { select: { name: true, termType: true } } } } },
   });
   const examResultsView = myExamResults
     .map((r) => {
@@ -111,7 +108,7 @@ export default async function StudentHomePage() {
       return {
         id: r.id,
         subjectName: r.exam.subject.name,
-        term: r.exam.term,
+        typeLabel: examTypeLabel(r.exam.subject.termType, r.exam.term, r.exam.kind),
         date: r.exam.date,
         score: r.score,
         maxScore: r.exam.maxScore,
@@ -269,7 +266,7 @@ export default async function StudentHomePage() {
               <thead>
                 <tr>
                   <th>المادة</th>
-                  <th>الترم</th>
+                  <th>نوع الاختبار</th>
                   <th>التاريخ</th>
                   <th>الوقت</th>
                   <th>المكان</th>
@@ -286,7 +283,7 @@ export default async function StudentHomePage() {
                           <span className="status-badge status-excused" style={{ marginInlineStart: "0.5rem", fontSize: "0.7rem" }}>قادم</span>
                         )}
                       </td>
-                      <td data-label="الترم">{termLabel(e.term)}</td>
+                      <td data-label="الترم">{examTypeLabel(e.subject.termType, e.term, e.kind)}</td>
                       <td data-label="التاريخ">
                         {new Date(e.date).toLocaleDateString("ar-EG", { weekday: "long", day: "numeric", month: "long" })}
                       </td>
@@ -314,7 +311,7 @@ export default async function StudentHomePage() {
               <thead>
                 <tr>
                   <th>المادة</th>
-                  <th>الترم</th>
+                  <th>نوع الاختبار</th>
                   <th style={{ textAlign: "center" }}>الدرجة</th>
                   <th style={{ textAlign: "center" }}>النسبة</th>
                   <th style={{ textAlign: "center" }}>الحالة</th>
@@ -324,7 +321,7 @@ export default async function StudentHomePage() {
                 {examResultsView.map((r) => (
                   <tr key={r.id}>
                     <td data-label="المادة" style={{ fontWeight: 600 }}>{r.subjectName}</td>
-                    <td data-label="الترم">{termLabel(r.term)}</td>
+                    <td data-label="الترم">{r.typeLabel}</td>
                     <td data-label="الدرجة" style={{ textAlign: "center", fontWeight: 700 }} dir="ltr">{r.score} / {r.maxScore}</td>
                     <td data-label="النسبة" style={{ textAlign: "center" }}>{r.pct}%</td>
                     <td data-label="الحالة" style={{ textAlign: "center" }}>

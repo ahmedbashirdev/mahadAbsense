@@ -239,6 +239,8 @@ model Exam {
   subjectId String
   subject   Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
   term      Int          @default(1) // 1 = الترم الأول, 2 = الترم الثاني
+  // "MIDTERM" (ميد ترم) or "FINAL" (اختبار نهائي / اختبار الترم)
+  kind      String       @default("FINAL")
   title     String?      // optional label, e.g. "اختبار نهاية الترم"
   date      DateTime     // exam date
   startTime String?      // optional HH:MM
