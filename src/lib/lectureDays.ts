@@ -278,3 +278,43 @@ export async function runWednesdayAdminAlerts() {
   const r = await dmAdmins(text);
   return { ok: true as const, ...r };
 }
+
+// ─── Cairo "now" + weekly dispatchers (so we can fold weekly tasks into the
+//     existing daily cron jobs and stay within plan cron limits) ─────────────
+
+/** Current weekday (0=Sun..6=Sat) and hour (0-23) in Cairo. */
+export function cairoNowParts(): { weekday: number; hour: number } {
+  const now = new Date();
+  const wd = new Intl.DateTimeFormat("en-US", { timeZone: CAIRO_TZ, weekday: "long" }).format(now);
+  const hourStr = new Intl.DateTimeFormat("en-GB", { timeZone: CAIRO_TZ, hour: "2-digit", hour12: false }).format(now);
+  const map: Record<string, number> = {
+    Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6,
+  };
+  return { weekday: map[wd] ?? -1, hour: parseInt(hourStr, 10) || 0 };
+}
+
+/** Create the upcoming Fri+Sat (idempotent), notify lecturers, and DM admins. */
+export async function runWeeklyAutoCreate() {
+  const { friday, saturday } = upcomingFridaySaturday();
+  const results = [];
+  const created: { label: string }[] = [];
+  for (const date of [friday, saturday]) {
+    const r = await createLectureDayWithNotify(date);
+    results.push({ date: date.toISOString().split("T")[0], created: r.created, lecturers: r.lecturers });
+    if (r.created && r.day?.label) created.push({ label: r.day.label });
+  }
+  const adminNotify = await notifyAdminsOfAutoCreatedDays(created);
+  return { results, adminNotify };
+}
+
+/**
+ * Runs the weekly auto-create only when it's Sunday night in Cairo. Designed to
+ * be called from the nightly (21:00 UTC) cron: that lands on Sun ~23:00 in
+ * winter and Mon ~00:00 in summer, so we accept Sunday OR very-early Monday.
+ */
+export async function runWeeklyAutoCreateIfDue() {
+  const { weekday, hour } = cairoNowParts();
+  const due = weekday === 0 || (weekday === 1 && hour < 3);
+  if (!due) return { skipped: "not Sunday night in Cairo" as const };
+  return runWeeklyAutoCreate();
+}
