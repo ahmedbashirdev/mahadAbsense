@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { sendTelegramMessage, escapeHtml } from "@/lib/telegram";
 
 const CAIRO_TZ = "Africa/Cairo";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || "";
 
 /** Format a date in Cairo time, e.g. "الجمعة ١٥ مايو ٢٠٢٦". */
 function cairoLong(date: Date): string {
@@ -151,4 +152,129 @@ export async function createLectureDayWithNotify(
     }
     throw e;
   }
+}
+
+// ─── Admin (STAFF) Telegram helpers ─────────────────────────────────────────
+
+/** Telegram chat IDs of all ADMINs who linked their account. */
+export async function getAdminChatIds(): Promise<string[]> {
+  const admins = await prisma.user.findMany({ where: { role: "ADMIN" }, select: { id: true } });
+  if (admins.length === 0) return [];
+  const subs = await prisma.telegramSubscription.findMany({
+    where: { userType: "STAFF", refId: { in: admins.map((u) => u.id) } },
+    select: { chatId: true },
+  });
+  return Array.from(new Set(subs.map((s) => s.chatId)));
+}
+
+async function dmAdmins(text: string) {
+  const chatIds = await getAdminChatIds();
+  let sent = 0, failed = 0;
+  for (const id of chatIds) {
+    const r = await sendTelegramMessage(id, text);
+    if (r.ok) sent++; else failed++;
+  }
+  return { admins: chatIds.length, sent, failed };
+}
+
+/** The calendar date "today" in Cairo, as a UTC-midnight Date. */
+export function cairoTodayUtcMidnight(): Date {
+  const ymd = new Intl.DateTimeFormat("en-CA", {
+    timeZone: CAIRO_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  return new Date(`${ymd}T00:00:00.000Z`);
+}
+
+/** The nearest upcoming Friday and the Saturday after it (UTC-midnight). */
+export function upcomingFridaySaturday(): { friday: Date; saturday: Date } {
+  const today = cairoTodayUtcMidnight();
+  const dow = today.getUTCDay(); // 0=Sun ... 5=Fri, 6=Sat
+  const daysUntilFriday = (5 - dow + 7) % 7;
+  const friday = new Date(today);
+  friday.setUTCDate(friday.getUTCDate() + daysUntilFriday);
+  const saturday = new Date(friday);
+  saturday.setUTCDate(saturday.getUTCDate() + 1);
+  return { friday, saturday };
+}
+
+/** DM admins a summary of days that were just auto-created. */
+export async function notifyAdminsOfAutoCreatedDays(
+  created: { label: string }[],
+) {
+  if (created.length === 0) return { admins: 0, sent: 0, failed: 0 };
+  const text = [
+    `🗓️ <b>تم إنشاء أيام المحاضرات تلقائيًا</b>`,
+    ``,
+    ...created.map((d) => `• ${escapeHtml(d.label)}`),
+    ``,
+    `✅ تم إرسال طلب تأكيد الحضور لكل المحاضرين.`,
+    APP_URL ? `${APP_URL}/lecture-days` : "",
+  ].filter(Boolean).join("\n");
+  return dmAdmins(text);
+}
+
+/**
+ * Wednesday follow-up for admins:
+ *  1) lecturers who still haven't confirmed/declined the coming Fri/Sat, so the
+ *     admin can reach out personally.
+ *  2) a warning if the coming Fri/Sat schedule isn't built + published to students.
+ */
+export async function runWednesdayAdminAlerts() {
+  const { friday, saturday } = upcomingFridaySaturday();
+  const dates = [friday, saturday];
+
+  const days = await prisma.lectureDay.findMany({
+    where: { date: { in: dates } },
+    include: {
+      availabilities: {
+        where: { lecturer: { isActive: true, approvalStatus: "APPROVED" } },
+        include: { lecturer: { select: { name: true } } },
+      },
+      lectures: { select: { id: true } },
+    },
+  });
+  const byTime = new Map(days.map((d) => [new Date(d.date).getTime(), d]));
+
+  const pendingLines: string[] = [];
+  const notReadyLines: string[] = [];
+  for (const date of dates) {
+    const label = cairoShort(date);
+    const d = byTime.get(date.getTime());
+    if (!d) {
+      notReadyLines.push(`• <b>${escapeHtml(label)}</b>: لم يتم إنشاء اليوم بعد`);
+      continue;
+    }
+    const pending = d.availabilities.filter((a) => a.status === "PENDING");
+    if (pending.length > 0) {
+      pendingLines.push(`• <b>${escapeHtml(label)}</b>: ${pending.map((a) => escapeHtml(a.lecturer.name)).join("، ")}`);
+    }
+    if (d.lectures.length === 0) {
+      notReadyLines.push(`• <b>${escapeHtml(label)}</b>: لم تُضف محاضرات للجدول`);
+    } else if (!d.isPublished) {
+      notReadyLines.push(`• <b>${escapeHtml(label)}</b>: الجدول جاهز لكنه غير منشور للطلاب`);
+    }
+  }
+
+  const sections: string[] = [];
+  if (pendingLines.length > 0) {
+    sections.push([`👤 <b>محاضرون لم يؤكدوا بعد</b> — يُفضّل التواصل معهم:`, ...pendingLines].join("\n"));
+  }
+  if (notReadyLines.length > 0) {
+    sections.push([`⚠️ <b>جدول الجمعة/السبت لم يكتمل ويُرسل للطلاب:</b>`, ...notReadyLines].join("\n"));
+  }
+
+  if (sections.length === 0) return { ok: true as const, sent: 0, note: "كل شيء جاهز" };
+
+  const text = [
+    `🔔 <b>تذكير إداري — تجهيز محاضرات الجمعة والسبت القادمين</b>`,
+    ``,
+    sections.join("\n\n"),
+    APP_URL ? `\n${APP_URL}/lecture-days` : "",
+  ].filter(Boolean).join("\n");
+
+  const r = await dmAdmins(text);
+  return { ok: true as const, ...r };
 }
