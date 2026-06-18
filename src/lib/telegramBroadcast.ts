@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getStaffSession } from "@/lib/auth";
 import { broadcastTelegramMessage, sendTelegramMessage, getTelegramDeepLink, escapeHtml } from "@/lib/telegram";
 import { logActivity } from "@/lib/logger";
+import { notifyLecturersToConfirmForDay } from "@/lib/lectureDays";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || "";
 
@@ -20,60 +21,14 @@ export async function notifyLecturersToConfirm(lectureDayId: string) {
   const session = await getStaffSession();
   if (!session) return { ok: false, error: "Unauthorized" };
 
-  const day = await prisma.lectureDay.findUnique({
-    where: { id: lectureDayId },
-    include: {
-      availabilities: {
-        where: { lecturer: { isActive: true, approvalStatus: "APPROVED" } },
-        include: { lecturer: { select: { id: true, name: true } } },
-      },
-    },
-  });
-  if (!day) return { ok: false, error: "Lecture day not found" };
-
-  const dateLabel = formatArabicDate(day.date);
-  const subs = await prisma.telegramSubscription.findMany({
-    where: {
-      userType: "LECTURER",
-      refId: { in: day.availabilities.map((a) => a.lecturerId) },
-    },
-  });
-  const subByLecturer = new Map(subs.map((s) => [s.refId, s.chatId]));
-
-  let sent = 0;
-  let skippedNoTelegram = 0;
-  let skippedConfirmed = 0;
-  let failed = 0;
-  for (const a of day.availabilities) {
-    const chatId = subByLecturer.get(a.lecturerId);
-    if (!chatId) { skippedNoTelegram++; continue; }
-    if (a.status === "CONFIRMED" || a.status === "DECLINED") { skippedConfirmed++; continue; }
-
-    const text = [
-      `🕌 <b>طلب تأكيد حضور</b>`,
-      ``,
-      `أ. ${escapeHtml(a.lecturer.name)}،`,
-      `يرجى تأكيد حضورك يوم <b>${escapeHtml(dateLabel)}</b>${day.label ? ` (${escapeHtml(day.label)})` : ""}.`,
-    ].join("\n");
-
-    const keyboard = {
-      inline_keyboard: [[
-        { text: "✅ تأكيد الحضور", callback_data: `conf:${a.id}` },
-        { text: "❌ اعتذار", callback_data: `decl:${a.id}` },
-      ]],
-    };
-
-    const r = await sendTelegramMessage(chatId, text, { reply_markup: keyboard });
-    if (!r.ok) failed++;
-    else sent++;
+  const r = await notifyLecturersToConfirmForDay(lectureDayId);
+  if (r.ok) {
+    await logActivity(
+      "إرسال طلب تأكيد محاضرين",
+      `تم إرسال ${r.sent}، ردّوا بالفعل ${r.skippedConfirmed}، بدون Telegram ${r.skippedNoTelegram}، فشل ${r.failed}`
+    );
   }
-
-  await logActivity(
-    "إرسال طلب تأكيد محاضرين",
-    `يوم ${dateLabel}: تم إرسال ${sent}، ردّوا بالفعل ${skippedConfirmed}، بدون Telegram ${skippedNoTelegram}، فشل ${failed}`
-  );
-
-  return { ok: true, sent, skippedNoTelegram, skippedConfirmed, failed };
+  return r;
 }
 
 /**

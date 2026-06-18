@@ -1,6 +1,10 @@
 {
   "crons": [
     {
+      "path": "/api/cron/auto-lecture-days",
+      "schedule": "0 21 * * 0"
+    },
+    {
       "path": "/api/cron/lecturer-reminders",
       "schedule": "0 6 * * *"
     },

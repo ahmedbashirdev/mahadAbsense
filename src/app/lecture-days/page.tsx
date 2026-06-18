@@ -4,6 +4,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getStaffSession } from "@/lib/auth";
 import { logActivity } from "@/lib/logger";
+import { createLectureDayWithNotify, notifyLecturersOfCancelledDay } from "@/lib/lectureDays";
 import { SubmitWithConfirm } from "@/components/SubmitWithConfirm";
 
 export const dynamic = "force-dynamic";
@@ -19,36 +20,14 @@ async function addLectureDay(formData: FormData) {
 
   const date = new Date(dateStr);
   if (Number.isNaN(date.getTime())) return;
-  date.setUTCHours(0, 0, 0, 0);
 
-  // Auto-create PENDING availability rows for every approved + active lecturer.
-  const lecturers = await prisma.lecturer.findMany({
-    where: { approvalStatus: "APPROVED", isActive: true },
-    select: { id: true },
-  });
-
-  try {
-    const day = await prisma.lectureDay.create({
-      data: {
-        date,
-        label,
-        availabilities: {
-          create: lecturers.map((l) => ({ lecturerId: l.id, status: "PENDING" })),
-        },
-      },
-    });
-    await logActivity("إنشاء يوم محاضرات", `يوم ${date.toLocaleDateString("ar-EG")} أُنشئ بـ ${lecturers.length} محاضر`);
-    revalidatePath("/lecture-days");
-    redirect(`/lecture-days/${day.id}`);
-  } catch (e) {
-    // Likely a unique conflict on (date) — same day already exists.
-    if (typeof e === "object" && e && "code" in e && (e as { code?: string }).code === "P2002") {
-      // ignore — page will show the existing day
-      revalidatePath("/lecture-days");
-      return;
-    }
-    throw e;
-  }
+  // Creates PENDING availabilities for all approved+active lecturers and DMs
+  // them the confirm/decline request automatically.
+  const r = await createLectureDayWithNotify(date, label, true);
+  await logActivity("إنشاء يوم محاضرات", `يوم ${date.toLocaleDateString("ar-EG")}`);
+  revalidatePath("/lecture-days");
+  revalidatePath("/me");
+  if (r.day) redirect(`/lecture-days/${r.day.id}`);
 }
 
 async function deleteLectureDay(formData: FormData) {
@@ -60,10 +39,13 @@ async function deleteLectureDay(formData: FormData) {
 
   const day = await prisma.lectureDay.findUnique({ where: { id }, select: { date: true } });
   if (day) {
+    // Tell lecturers the day is cancelled BEFORE we delete it (and its rows).
+    await notifyLecturersOfCancelledDay(id);
     await prisma.lectureDay.delete({ where: { id } });
     await logActivity("حذف يوم محاضرات", `يوم ${day.date.toLocaleDateString("ar-EG")}`);
   }
   revalidatePath("/lecture-days");
+  revalidatePath("/me");
 }
 
 export default async function LectureDaysPage() {
