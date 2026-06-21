@@ -266,6 +266,16 @@ export async function runWednesdayAdminAlerts() {
     sections.push([`⚠️ <b>جدول الجمعة/السبت لم يكتمل ويُرسل للطلاب:</b>`, ...notReadyLines].join("\n"));
   }
 
+  // Chronic non-responders: lecturers who ignored the last 3 consecutive days.
+  const stats = await getLecturerResponseStats();
+  const chronic = stats.filter((s) => s.ignoring);
+  if (chronic.length > 0) {
+    sections.push([
+      `🔁 <b>محاضرون يتجاهلون الإشعارات باستمرار</b> (لم يردّوا آخر ٣ أيام) — يُفضّل التواصل الشخصي:`,
+      ...chronic.map((s) => `• ${escapeHtml(s.name)}${s.rate !== null ? ` — استجابة ${s.rate}%` : ""}`),
+    ].join("\n"));
+  }
+
   if (sections.length === 0) return { ok: true as const, sent: 0, note: "كل شيء جاهز" };
 
   const text = [
@@ -317,4 +327,55 @@ export async function runWeeklyAutoCreateIfDue() {
   const due = weekday === 0 || (weekday === 1 && hour < 3);
   if (!due) return { skipped: "not Sunday night in Cairo" as const };
   return runWeeklyAutoCreate();
+}
+
+// ─── Lecturer response tracking ─────────────────────────────────────────────
+
+export type LecturerResponseStat = {
+  id: string;
+  name: string;
+  asked: number;        // past lecture days the lecturer was asked about
+  responded: number;    // of those, how many they confirmed/declined
+  rate: number | null;  // response % (null when never asked)
+  recent: string[];     // last few statuses (newest first): CONFIRMED/DECLINED/PENDING
+  ignoring: boolean;    // stayed PENDING for the last 3 consecutive past days
+};
+
+/**
+ * Per-lecturer Telegram response stats based on availability rows for lecture
+ * days that have already arrived (date <= today). "ignoring" = the lecturer
+ * never responded (still PENDING) for the last 3 consecutive such days.
+ */
+export async function getLecturerResponseStats(): Promise<LecturerResponseStat[]> {
+  const today = cairoTodayUtcMidnight();
+  const lecturers = await prisma.lecturer.findMany({
+    where: { isActive: true, approvalStatus: "APPROVED" },
+    orderBy: { name: "asc" },
+    select: {
+      id: true,
+      name: true,
+      availabilities: {
+        where: { lectureDay: { date: { lte: today } } },
+        orderBy: { lectureDay: { date: "desc" } },
+        select: { status: true },
+      },
+    },
+  });
+
+  return lecturers.map((l) => {
+    const asked = l.availabilities.length;
+    const responded = l.availabilities.filter((a) => a.status !== "PENDING").length;
+    const rate = asked ? Math.round((responded / asked) * 100) : null;
+    const last3 = l.availabilities.slice(0, 3);
+    const ignoring = last3.length >= 3 && last3.every((a) => a.status === "PENDING");
+    return {
+      id: l.id,
+      name: l.name,
+      asked,
+      responded,
+      rate,
+      recent: l.availabilities.slice(0, 5).map((a) => a.status),
+      ignoring,
+    };
+  });
 }

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { getStaffSession } from "@/lib/auth";
 import { logActivity } from "@/lib/logger";
 import { SubmitWithConfirm } from "@/components/SubmitWithConfirm";
+import { getLecturerResponseStats } from "@/lib/lectureDays";
 import LecturerSubjectPicker from "./LecturerSubjectPicker";
 
 export const dynamic = "force-dynamic";
@@ -190,6 +191,14 @@ export default async function LecturersPage({ searchParams }: { searchParams: Pr
 
   const tgByLecturer = new Map(tgSubs.map((s) => [s.refId, s]));
 
+  // Telegram response tracking — flag lecturers who keep ignoring requests.
+  const responseStats = await getLecturerResponseStats();
+  const sortedStats = [...responseStats].sort((a, b) => {
+    if (a.ignoring !== b.ignoring) return a.ignoring ? -1 : 1;
+    return (a.rate ?? 101) - (b.rate ?? 101);
+  });
+  const ignoringCount = responseStats.filter((s) => s.ignoring).length;
+
   const subjectsForPicker = allSubjects.map((s) => ({
     id: s.id,
     name: s.name,
@@ -222,6 +231,72 @@ export default async function LecturersPage({ searchParams }: { searchParams: Pr
             راجع طلبات التسجيل من القائمة أسفل ووافق عليها أو احذفها.
           </p>
         </div>
+      )}
+
+      {responseStats.length > 0 && (
+        <section className="card animate-fade-in" style={{ marginBottom: "1.5rem" }}>
+          <h3 style={{ marginBottom: "0.5rem", fontWeight: 700, display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+            📊 متابعة استجابة المحاضرين على Telegram
+            {ignoringCount > 0 && (
+              <span className="status-badge status-absent" style={{ fontSize: "0.75rem" }}>
+                {ignoringCount} بيتجاهلوا الإشعارات
+              </span>
+            )}
+          </h3>
+          <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", marginBottom: "1rem" }}>
+            بناءً على ردودهم على طلبات التأكيد للأيام اللي عدّت. علامة <b>بيتجاهل</b> معناها ماردّش (لا تأكيد ولا اعتذار) على آخر ٣ أيام متتالية.
+          </p>
+          <div className="table-responsive-cards" style={{ overflowX: "auto" }}>
+            <table>
+              <thead>
+                <tr>
+                  <th>المحاضر</th>
+                  <th style={{ textAlign: "center" }}>اتطلب منه</th>
+                  <th style={{ textAlign: "center" }}>رد</th>
+                  <th style={{ textAlign: "center" }}>نسبة الاستجابة</th>
+                  <th style={{ textAlign: "center" }}>آخر الردود</th>
+                  <th style={{ textAlign: "center" }}>الحالة</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedStats.map((s) => {
+                  const linked = tgByLecturer.has(s.id);
+                  return (
+                    <tr key={s.id}>
+                      <td data-label="المحاضر" style={{ fontWeight: 600 }}>
+                        {s.name}
+                        {!linked && (
+                          <span className="status-badge" style={{ marginInlineStart: "0.4rem", fontSize: "0.68rem", backgroundColor: "var(--bg-tertiary)", color: "var(--text-secondary)" }}>
+                            غير مربوط بـ Telegram
+                          </span>
+                        )}
+                      </td>
+                      <td data-label="اتطلب منه" style={{ textAlign: "center" }}>{s.asked}</td>
+                      <td data-label="رد" style={{ textAlign: "center" }}>{s.responded}</td>
+                      <td data-label="نسبة الاستجابة" style={{ textAlign: "center", fontWeight: 700, color: s.rate === null ? "var(--text-tertiary)" : s.rate >= 70 ? "var(--success)" : s.rate >= 40 ? "var(--warning)" : "var(--danger)" }}>
+                        {s.rate === null ? "—" : `${s.rate}%`}
+                      </td>
+                      <td data-label="آخر الردود" style={{ textAlign: "center", letterSpacing: "2px" }} dir="ltr" title="الأحدث على اليسار">
+                        {s.recent.length === 0 ? "—" : s.recent.map((st, i) => (
+                          <span key={i} style={{ color: st === "CONFIRMED" ? "var(--success)" : st === "DECLINED" ? "var(--danger)" : "var(--warning)" }}>
+                            {st === "CONFIRMED" ? "✓" : st === "DECLINED" ? "✗" : "⏳"}
+                          </span>
+                        ))}
+                      </td>
+                      <td data-label="الحالة" style={{ textAlign: "center" }}>
+                        {s.ignoring ? (
+                          <span className="status-badge status-absent">⚠️ بيتجاهل</span>
+                        ) : (
+                          <span className="status-badge status-present" style={{ fontSize: "0.75rem" }}>منتظم</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
       )}
 
       <div className="two-col-grid">
