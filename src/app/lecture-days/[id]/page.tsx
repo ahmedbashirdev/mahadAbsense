@@ -5,6 +5,9 @@ import { prisma } from "@/lib/prisma";
 import { getStaffSession } from "@/lib/auth";
 import { logActivity } from "@/lib/logger";
 import { SubmitWithConfirm } from "@/components/SubmitWithConfirm";
+import Modal from "@/components/Modal";
+import ClientForm from "@/components/ClientForm";
+import SubmitButton from "@/components/SubmitButton";
 import BroadcastButtons from "./BroadcastButtons";
 
 export const dynamic = "force-dynamic";
@@ -85,6 +88,31 @@ async function deleteLecture(formData: FormData) {
   revalidatePath(`/lecture-days/${lec.lectureDayId}`);
 }
 
+async function editLecture(formData: FormData) {
+  "use server"
+  const session = await getStaffSession();
+  if (!session) return;
+
+  const id = (formData.get("id") as string) || "";
+  const subjectId = (formData.get("subjectId") as string) || "";
+  const lecturerId = ((formData.get("lecturerId") as string) || "") || null;
+  const startTime = ((formData.get("startTime") as string) || "").trim();
+  const endTime = ((formData.get("endTime") as string) || "").trim();
+  if (!id || !subjectId || !startTime || !endTime) return;
+
+  const lec = await prisma.lecture.findUnique({ where: { id }, select: { lectureDayId: true } });
+  if (!lec) return;
+
+  await prisma.lecture.update({
+    where: { id },
+    data: { subjectId, lecturerId, startTime, endTime },
+  });
+  await logActivity("تعديل محاضرة", "تعديل مادة/محاضر/وقت محاضرة في الجدول");
+  revalidatePath(`/lecture-days/${lec.lectureDayId}`);
+  revalidatePath("/me");
+  redirect(`/lecture-days/${lec.lectureDayId}`);
+}
+
 async function moveLecture(formData: FormData) {
   "use server"
   const session = await getStaffSession();
@@ -144,11 +172,18 @@ async function publishDay(formData: FormData) {
   revalidatePath("/me");
 }
 
-export default async function LectureDayPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function LectureDayPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ editLecture?: string }>;
+}) {
   const session = await getStaffSession();
   if (!session) redirect("/login");
 
   const { id } = await params;
+  const { editLecture: editLectureId } = await searchParams;
 
   const day = await prisma.lectureDay.findUnique({
     where: { id },
@@ -177,6 +212,21 @@ export default async function LectureDayPage({ params }: { params: Promise<{ id:
   const confirmedLecturers = day.availabilities
     .filter((a) => a.status === "CONFIRMED")
     .map((a) => a.lecturer);
+
+  // The lecture the admin asked to edit (via ?editLecture=<id>).
+  const lectureToEdit = editLectureId
+    ? day.lectures.find((l) => l.id === editLectureId) || null
+    : null;
+
+  // Lecturer options for the edit modal: confirmed lecturers, plus the lecture's
+  // current lecturer if they're no longer in the confirmed list.
+  const editLecturerOptions: { id: string; name: string }[] = [];
+  if (lectureToEdit) {
+    for (const l of confirmedLecturers) editLecturerOptions.push({ id: l.id, name: l.name });
+    if (lectureToEdit.lecturer && !editLecturerOptions.some((o) => o.id === lectureToEdit.lecturer!.id)) {
+      editLecturerOptions.unshift({ id: lectureToEdit.lecturer.id, name: lectureToEdit.lecturer.name });
+    }
+  }
 
   // All subjects for the manual "add lecture" picker.
   const allSubjects = await prisma.subject.findMany({
@@ -474,6 +524,13 @@ export default async function LectureDayPage({ params }: { params: Promise<{ id:
                             </button>
                           </form>
                         )}
+                        <Link
+                          href={`/lecture-days/${day.id}?editLecture=${l.id}`}
+                          className="btn btn-secondary"
+                          style={{ padding: "0.3rem 0.6rem", fontSize: "0.85rem" }}
+                        >
+                          تعديل
+                        </Link>
                         <SubmitWithConfirm
                           action={deleteLecture}
                           id={l.id}
@@ -546,6 +603,52 @@ export default async function LectureDayPage({ params }: { params: Promise<{ id:
           </form>
         </details>
       </section>
+
+      {lectureToEdit && (
+        <Modal title="تعديل المحاضرة" onCloseRoute={`/lecture-days/${day.id}`}>
+          <ClientForm
+            action={editLecture}
+            successMessage="تم تعديل المحاضرة"
+            style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
+          >
+            <input type="hidden" name="id" value={lectureToEdit.id} />
+            <div>
+              <label className="field-label">المادة</label>
+              <select name="subjectId" className="input-field" defaultValue={lectureToEdit.subjectId} required>
+                <option value="" disabled>اختر مادة...</option>
+                {allSubjects.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} ({s.academicYear.name})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="field-label">المحاضر (اختياري)</label>
+              <select name="lecturerId" className="input-field" defaultValue={lectureToEdit.lecturerId || ""}>
+                <option value="">— بدون —</option>
+                {editLecturerOptions.map((l) => (
+                  <option key={l.id} value={l.id}>{l.name}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ display: "flex", gap: "1rem" }}>
+              <div style={{ flex: 1 }}>
+                <label className="field-label">من الساعة</label>
+                <input type="time" name="startTime" className="input-field" defaultValue={lectureToEdit.startTime} required />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label className="field-label">إلى الساعة</label>
+                <input type="time" name="endTime" className="input-field" defaultValue={lectureToEdit.endTime} required />
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
+              <SubmitButton defaultText="حفظ التعديلات" style={{ flex: 1 }} />
+              <Link href={`/lecture-days/${day.id}`} className="btn btn-secondary" style={{ flex: 1, textAlign: "center" }}>إلغاء</Link>
+            </div>
+          </ClientForm>
+        </Modal>
+      )}
     </>
   );
 }
