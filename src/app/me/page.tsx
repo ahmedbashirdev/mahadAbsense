@@ -243,7 +243,7 @@ export default async function StudentHomePage() {
                         <tr key={l.id}>
                           <td data-label="الوقت" dir="ltr" style={{ fontWeight: 600 }}>{l.startTime} – {l.endTime}</td>
                           <td data-label="المادة">{l.subject.name}</td>
-                          <td data-label="المحاضر">{l.lecturer ? l.lecturer.name : <span style={{ color: "var(--text-tertiary)" }}>—</span>}</td>
+                          <td data-label="المحاضر">{l.lecturer ? l.lecturer.name : l.lecturerName ? l.lecturerName : <span style={{ color: "var(--text-tertiary)" }}>—</span>}</td>
                         </tr>
                       ))}
                     </tbody>

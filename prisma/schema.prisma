@@ -159,6 +159,10 @@ model Lecture {
   subject      Subject    @relation(fields: [subjectId], references: [id], onDelete: Cascade)
   lecturerId   String?
   lecturer     Lecturer?  @relation(fields: [lecturerId], references: [id], onDelete: SetNull)
+  // Free-text name for a substitute/guest lecturer who isn't a registered
+  // Lecturer (e.g. the assigned lecturer apologised or is unavailable). Used
+  // for display when lecturerId is null.
+  lecturerName String?
   // Order within the day (1, 2, 3...). Admin sorts the day's lectures.
   order        Int        @default(1)
   // Free-form HH:MM strings; we don't bind to a specific timezone here.

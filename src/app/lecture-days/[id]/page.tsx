@@ -19,7 +19,10 @@ async function addLecture(formData: FormData) {
 
   const lectureDayId = (formData.get("lectureDayId") as string) || "";
   const subjectId = (formData.get("subjectId") as string) || "";
-  const lecturerId = ((formData.get("lecturerId") as string) || "") || null;
+  const guestName = ((formData.get("lecturerName") as string) || "").trim();
+  // A typed substitute name takes precedence over the dropdown selection.
+  const lecturerId = guestName ? null : (((formData.get("lecturerId") as string) || "") || null);
+  const lecturerName = guestName || null;
   const startTime = ((formData.get("startTime") as string) || "").trim();
   const endTime = ((formData.get("endTime") as string) || "").trim();
   if (!lectureDayId || !subjectId || !startTime || !endTime) return;
@@ -32,7 +35,7 @@ async function addLecture(formData: FormData) {
   const nextOrder = (last?.order ?? 0) + 1;
 
   await prisma.lecture.create({
-    data: { lectureDayId, subjectId, lecturerId, startTime, endTime, order: nextOrder },
+    data: { lectureDayId, subjectId, lecturerId, lecturerName, startTime, endTime, order: nextOrder },
   });
   revalidatePath(`/lecture-days/${lectureDayId}`);
 }
@@ -95,7 +98,9 @@ async function editLecture(formData: FormData) {
 
   const id = (formData.get("id") as string) || "";
   const subjectId = (formData.get("subjectId") as string) || "";
-  const lecturerId = ((formData.get("lecturerId") as string) || "") || null;
+  const guestName = ((formData.get("lecturerName") as string) || "").trim();
+  const lecturerId = guestName ? null : (((formData.get("lecturerId") as string) || "") || null);
+  const lecturerName = guestName || null;
   const startTime = ((formData.get("startTime") as string) || "").trim();
   const endTime = ((formData.get("endTime") as string) || "").trim();
   if (!id || !subjectId || !startTime || !endTime) return;
@@ -105,7 +110,7 @@ async function editLecture(formData: FormData) {
 
   await prisma.lecture.update({
     where: { id },
-    data: { subjectId, lecturerId, startTime, endTime },
+    data: { subjectId, lecturerId, lecturerName, startTime, endTime },
   });
   await logActivity("تعديل محاضرة", "تعديل مادة/محاضر/وقت محاضرة في الجدول");
   revalidatePath(`/lecture-days/${lec.lectureDayId}`);
@@ -208,21 +213,24 @@ export default async function LectureDayPage({
 
   if (!day) notFound();
 
-  // Lecturers who confirmed → eligible to be assigned to lectures.
-  const confirmedLecturers = day.availabilities
-    .filter((a) => a.status === "CONFIRMED")
-    .map((a) => a.lecturer);
+  // All active+approved lecturers — so the admin can assign a substitute even
+  // if they didn't confirm/respond for this day (apologised, travelling, etc.).
+  const allLecturers = await prisma.lecturer.findMany({
+    where: { isActive: true, approvalStatus: "APPROVED" },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  });
 
   // The lecture the admin asked to edit (via ?editLecture=<id>).
   const lectureToEdit = editLectureId
     ? day.lectures.find((l) => l.id === editLectureId) || null
     : null;
 
-  // Lecturer options for the edit modal: confirmed lecturers, plus the lecture's
-  // current lecturer if they're no longer in the confirmed list.
+  // Lecturer options for the edit modal: all active lecturers, plus the lecture's
+  // current lecturer if they're no longer active/approved.
   const editLecturerOptions: { id: string; name: string }[] = [];
   if (lectureToEdit) {
-    for (const l of confirmedLecturers) editLecturerOptions.push({ id: l.id, name: l.name });
+    for (const l of allLecturers) editLecturerOptions.push({ id: l.id, name: l.name });
     if (lectureToEdit.lecturer && !editLecturerOptions.some((o) => o.id === lectureToEdit.lecturer!.id)) {
       editLecturerOptions.unshift({ id: lectureToEdit.lecturer.id, name: lectureToEdit.lecturer.name });
     }
@@ -427,15 +435,20 @@ export default async function LectureDayPage({
                     borderRadius: "var(--border-radius-sm)",
                   }}
                 >
-                  <input type="hidden" name="subjectId" value={s.subjectId} />
                   <input type="hidden" name="lecturerId" value={s.lecturerId} />
 
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>{s.subjectName}</div>
-                    <div style={{ fontSize: "0.78rem", color: "var(--text-secondary)" }}>
-                      {s.yearName}
-                    </div>
-                  </div>
+                  <select
+                    name="subjectId"
+                    defaultValue={s.subjectId}
+                    className="input-field"
+                    style={{ padding: "0.4rem 0.5rem", fontSize: "0.82rem" }}
+                  >
+                    {allSubjects.map((su) => (
+                      <option key={su.id} value={su.id}>
+                        {su.name} ({su.academicYear.name})
+                      </option>
+                    ))}
+                  </select>
 
                   <div style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>
                     👨‍🏫 {s.lecturerName}
@@ -498,7 +511,9 @@ export default async function LectureDayPage({
                       </div>
                     </td>
                     <td data-label="المحاضر">
-                      {l.lecturer ? l.lecturer.name : (
+                      {l.lecturer ? l.lecturer.name : l.lecturerName ? (
+                        <span>{l.lecturerName} <span style={{ fontSize: "0.72rem", color: "var(--text-tertiary)" }}>(بديل)</span></span>
+                      ) : (
                         <span style={{ color: "var(--text-tertiary)" }}>—</span>
                       )}
                     </td>
@@ -581,12 +596,16 @@ export default async function LectureDayPage({
               <label className="field-label">المحاضر (اختياري)</label>
               <select name="lecturerId" className="input-field" defaultValue="">
                 <option value="">— بدون —</option>
-                {confirmedLecturers.map((l) => (
+                {allLecturers.map((l) => (
                   <option key={l.id} value={l.id}>{l.name}</option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label className="field-label">أو محاضر بديل (غير مسجل)</label>
+              <input type="text" name="lecturerName" className="input-field" placeholder="اكتب اسم المحاضر البديل" />
               <p style={{ fontSize: "0.75rem", color: "var(--text-tertiary)", marginTop: "0.25rem" }}>
-                ظاهر هنا المحاضرين اللي أكدوا حضورهم بس.
+                لو كتبت اسم هنا، هيتسجّل كبديل ويتجاهل الاختيار من القائمة.
               </p>
             </div>
             <div>
@@ -631,6 +650,19 @@ export default async function LectureDayPage({
                   <option key={l.id} value={l.id}>{l.name}</option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label className="field-label">أو محاضر بديل (غير مسجل)</label>
+              <input
+                type="text"
+                name="lecturerName"
+                className="input-field"
+                defaultValue={lectureToEdit.lecturerName || ""}
+                placeholder="اكتب اسم المحاضر البديل"
+              />
+              <p style={{ fontSize: "0.75rem", color: "var(--text-tertiary)", marginTop: "0.25rem" }}>
+                لو كتبت اسم هنا، هيتسجّل كبديل ويتجاهل الاختيار من القائمة.
+              </p>
             </div>
             <div style={{ display: "flex", gap: "1rem" }}>
               <div style={{ flex: 1 }}>

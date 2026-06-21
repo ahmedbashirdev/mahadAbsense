@@ -96,7 +96,8 @@ export async function notifyStudentsOfSchedule(lectureDayId: string) {
       "",
     ];
     for (const l of lectures) {
-      const lec = l.lecturer ? ` • ${escapeHtml(l.lecturer.name)}` : "";
+      const lecName = l.lecturer ? l.lecturer.name : (l.lecturerName || "");
+      const lec = lecName ? ` • ${escapeHtml(lecName)}` : "";
       lines.push(`${l.order}. <b>${escapeHtml(l.subject.name)}</b>${lec}`);
       lines.push(`   🕒 <code>${l.startTime}</code> – <code>${l.endTime}</code>`);
     }
@@ -189,7 +190,7 @@ export async function sendHourlyStudentReminders() {
       ``,
       `📚 ${escapeHtml(l.subject.name)} — ${escapeHtml(l.subject.academicYear.name)}`,
       `🕒 <code>${l.startTime}</code> – <code>${l.endTime}</code>`,
-      l.lecturer ? `👨‍🏫 ${escapeHtml(l.lecturer.name)}` : "",
+      (l.lecturer || l.lecturerName) ? `👨‍🏫 ${escapeHtml(l.lecturer ? l.lecturer.name : l.lecturerName!)}` : "",
     ].filter(Boolean).join("\n");
 
     const r = await broadcastTelegramMessage(subs.map((s) => s.chatId), text);
