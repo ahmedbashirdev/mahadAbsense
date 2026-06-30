@@ -7,6 +7,7 @@ import {
   escapeHtml,
 } from "@/lib/telegram";
 import { notifyAdminsOfLecturerResponse } from "@/lib/telegramBroadcast";
+import { buildLecturerUpcomingView } from "@/lib/lectureDays";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -140,8 +141,30 @@ function buildSubjectKeyboard(
 }
 
 /**
- * Lecturer pressed "✅ تأكيد الحضور" — show subject selection.
- * If the lecturer has no linked subjects, confirm directly.
+ * Refresh the ORIGINAL combined "upcoming days" message in place so the day the
+ * lecturer just answered shows its new status (and loses its buttons) while the
+ * other days stay actionable. Best-effort — failures are ignored.
+ */
+async function refreshCombinedMessage(
+  chatId: number,
+  messageId: number | undefined,
+  lecturerId: string,
+) {
+  if (!messageId) return;
+  const view = await buildLecturerUpcomingView(lecturerId);
+  if (!view) return;
+  await editMessageText(chatId, messageId, view.text, {
+    reply_markup: (view.reply_markup ?? null) as unknown as undefined,
+  });
+}
+
+/**
+ * Lecturer pressed "✅ تأكيد الحضور" for a single day inside the combined
+ * message. The day is confirmed immediately; the original message is refreshed
+ * (so the other days stay actionable) and a fresh confirmation message is sent
+ * at the bottom of the chat so the lecturer actually notices their reply was
+ * recorded. If the lecturer has linked subjects, an optional subject picker is
+ * sent as a SEPARATE message so the combined day list stays intact.
  */
 async function handleConfirmAttendance(
   chatId: number,
@@ -175,31 +198,34 @@ async function handleConfirmAttendance(
   });
   const subjects = av.lecturer.subjects;
 
-  // If no subjects linked, confirm immediately without subject selection
+  // Confirm right away (subjects, if any, are an optional refinement chosen
+  // afterwards in a separate message).
+  await prisma.lecturerAvailability.update({
+    where: { id: avId },
+    data: { status: "CONFIRMED", respondedAt: new Date() },
+  });
+
+  // Refresh the original combined message so this day flips to ✅ and the rest
+  // stay clickable.
+  await refreshCombinedMessage(chatId, messageId, av.lecturerId);
+  await answerCallbackQuery(cqId, "✅ تم تأكيد حضورك!");
+  // Notify admins (single notification per response).
+  await notifyAdminsOfLecturerResponse(avId);
+
+  // No linked subjects → just send a plain confirmation at the bottom.
   if (subjects.length === 0) {
-    await prisma.lecturerAvailability.update({
-      where: { id: avId },
-      data: { status: "CONFIRMED", plannedSubjectIds: "[]", respondedAt: new Date() },
-    });
-    const newText = [
+    const confirmedText = [
       `✅ <b>تم تأكيد حضورك بنجاح</b>`,
       ``,
       `📅 يوم: <b>${escapeHtml(dateLabel)}</b>`,
       av.lectureDay.label ? `(${escapeHtml(av.lectureDay.label)})` : "",
     ].filter(Boolean).join("\n");
-
-    if (messageId) {
-      await editMessageText(chatId, messageId, newText, { reply_markup: null as unknown as undefined });
-    } else {
-      await sendTelegramMessage(chatId, newText);
-    }
-    await answerCallbackQuery(cqId, "✅ تم تأكيد حضورك!");
-    // Notify admins
-    await notifyAdminsOfLecturerResponse(avId);
+    await sendTelegramMessage(chatId, confirmedText);
     return;
   }
 
-  // Create a bot session for multi-step subject selection
+  // Linked subjects → open an optional subject picker as a SEPARATE message so
+  // the combined day list above is untouched.
   const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
   const sess = await prisma.telegramBotSession.create({
     data: {
@@ -210,15 +236,14 @@ async function handleConfirmAttendance(
     },
   });
 
-  const text = buildSubjectSelectionMessage(subjects, [], dateLabel);
+  const pickerText = [
+    `✅ <b>تم تأكيد حضورك ليوم ${escapeHtml(dateLabel)}</b>`,
+    av.lectureDay.label ? `(${escapeHtml(av.lectureDay.label)})` : "",
+    ``,
+    buildSubjectSelectionMessage(subjects, [], dateLabel),
+  ].filter(Boolean).join("\n");
   const keyboard = buildSubjectKeyboard(subjects, [], sess.id);
-
-  if (messageId) {
-    await editMessageText(chatId, messageId, text, { reply_markup: keyboard });
-  } else {
-    await sendTelegramMessage(chatId, text, { reply_markup: keyboard });
-  }
-  await answerCallbackQuery(cqId);
+  await sendTelegramMessage(chatId, pickerText, { reply_markup: keyboard });
 }
 
 /**
@@ -255,6 +280,12 @@ async function handleDeclineAttendance(
     day: "numeric",
     month: "long",
   });
+
+  // Refresh the original combined message (this day flips to ❌, the rest stay
+  // actionable), then send a fresh message at the bottom so the lecturer
+  // actually sees the reply was recorded.
+  await refreshCombinedMessage(chatId, messageId, av.lecturerId);
+
   const newText = [
     `❌ <b>تم تسجيل اعتذارك</b>`,
     ``,
@@ -263,12 +294,8 @@ async function handleDeclineAttendance(
     ``,
     `شكرًا على الإخطار. يمكنك تغيير ردّك في أي وقت من حسابك على الموقع.`,
   ].filter(Boolean).join("\n");
+  await sendTelegramMessage(chatId, newText);
 
-  if (messageId) {
-    await editMessageText(chatId, messageId, newText, { reply_markup: null as unknown as undefined });
-  } else {
-    await sendTelegramMessage(chatId, newText);
-  }
   await answerCallbackQuery(cqId, "تم تسجيل اعتذارك.");
   await notifyAdminsOfLecturerResponse(avId);
 }
@@ -371,14 +398,11 @@ async function handleDoneSubjectSelection(
       ? selectedSubjects.map((s) => `  • ${escapeHtml(s.name)}${s.academicYear ? ` — ${escapeHtml(s.academicYear.name)}` : ""}`).join("\n")
       : "  (لم تختر مواد محددة)";
 
-  // Update availability to CONFIRMED
+  // Attendance was already CONFIRMED when the button was pressed (and admins
+  // were already notified); here we only record the chosen subjects.
   await prisma.lecturerAvailability.update({
     where: { id: sess.availabilityId },
-    data: {
-      status: "CONFIRMED",
-      plannedSubjectIds: JSON.stringify(selectedIds),
-      respondedAt: new Date(),
-    },
+    data: { plannedSubjectIds: JSON.stringify(selectedIds) },
   });
 
   // Clean up session
@@ -401,8 +425,7 @@ async function handleDoneSubjectSelection(
   } else {
     await sendTelegramMessage(chatId, newText);
   }
-  await answerCallbackQuery(cqId, "✅ تم تأكيد حضورك!");
-  await notifyAdminsOfLecturerResponse(sess.availabilityId);
+  await answerCallbackQuery(cqId, "✅ تم حفظ المواد!");
 }
 
 // ─── Main callback_query dispatcher ──────────────────────────────────────────

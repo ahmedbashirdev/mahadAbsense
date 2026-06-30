@@ -1,9 +1,9 @@
 "use server"
 import { prisma } from "@/lib/prisma";
 import { getStaffSession } from "@/lib/auth";
-import { broadcastTelegramMessage, sendTelegramMessage, getTelegramDeepLink, escapeHtml } from "@/lib/telegram";
+import { broadcastTelegramMessage, getTelegramDeepLink, escapeHtml } from "@/lib/telegram";
 import { logActivity } from "@/lib/logger";
-import { notifyLecturersToConfirmForDay } from "@/lib/lectureDays";
+import { notifyLecturersForUpcomingDays, notifyLecturersForDays, cairoTodayUtcMidnight } from "@/lib/lectureDays";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || "";
 
@@ -17,11 +17,13 @@ function formatArabicDate(d: Date | string): string {
  * lecturer for the given lectureDay. Lecturers without a Telegram subscription
  * are silently skipped — they can still respond from the website.
  */
-export async function notifyLecturersToConfirm(lectureDayId: string) {
+export async function notifyLecturersToConfirm(_lectureDayId: string) {
   const session = await getStaffSession();
   if (!session) return { ok: false, error: "Unauthorized" };
 
-  const r = await notifyLecturersToConfirmForDay(lectureDayId);
+  // Send each lecturer ONE combined message covering all upcoming days, instead
+  // of a separate message per day.
+  const r = await notifyLecturersForUpcomingDays();
   if (r.ok) {
     await logActivity(
       "إرسال طلب تأكيد محاضرين",
@@ -226,60 +228,20 @@ export async function sendDailyStudentReminders() {
  * Called from a cron job each morning.
  */
 export async function sendLecturerReminders() {
-  const now = new Date();
-  const todayUtc = new Date(now);
-  todayUtc.setUTCHours(0, 0, 0, 0);
+  const todayUtc = cairoTodayUtcMidnight();
   const inSevenDays = new Date(todayUtc);
   inSevenDays.setUTCDate(inSevenDays.getUTCDate() + 7);
 
+  // All days in the coming week, regardless of whether the lecturer answered;
+  // notifyLecturersForDays will, per-lecturer, show only the still-pending ones
+  // in a single combined reminder message.
   const days = await prisma.lectureDay.findMany({
     where: { date: { gte: todayUtc, lte: inSevenDays } },
-    include: {
-      availabilities: {
-        where: {
-          status: "PENDING",
-          lecturer: { isActive: true, approvalStatus: "APPROVED" },
-        },
-        include: { lecturer: { select: { id: true, name: true } } },
-      },
-    },
+    select: { id: true },
   });
   if (days.length === 0) return { ok: true, sent: 0 };
 
-  let sent = 0;
-  let failed = 0;
-  for (const d of days) {
-    if (d.availabilities.length === 0) continue;
-    const subs = await prisma.telegramSubscription.findMany({
-      where: {
-        userType: "LECTURER",
-        refId: { in: d.availabilities.map((a) => a.lecturerId) },
-      },
-    });
-    const subByLecturer = new Map(subs.map((s) => [s.refId, s.chatId]));
-    const dateLabel = formatArabicDate(d.date);
-
-    for (const a of d.availabilities) {
-      const chatId = subByLecturer.get(a.lecturerId);
-      if (!chatId) continue;
-      const text = [
-        `⏳ <b>تذكير: لم تؤكد حضورك بعد</b>`,
-        ``,
-        `أ. ${escapeHtml(a.lecturer.name)}، يرجى تأكيد أو الاعتذار عن يوم <b>${escapeHtml(dateLabel)}</b>.`,
-      ].join("\n");
-      const keyboard = {
-        inline_keyboard: [[
-          { text: "✅ تأكيد الحضور", callback_data: `conf:${a.id}` },
-          { text: "❌ اعتذار", callback_data: `decl:${a.id}` },
-        ]],
-      };
-      const r = await sendTelegramMessage(chatId, text, { reply_markup: keyboard });
-      if (!r.ok) failed++;
-      else sent++;
-    }
-  }
-
-  return { ok: true, sent, failed };
+  return notifyLecturersForDays(days.map((d) => d.id), { reminder: true, onlyPending: true });
 }
 
 /**
