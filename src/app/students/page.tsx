@@ -133,40 +133,51 @@ async function mergeStudent(formData: FormData) {
   if (!access.allowedGenders.includes(source.gender as "MALE" | "FEMALE")) return;
   if (!access.allowedGenders.includes(dest.gender as "MALE" | "FEMALE")) return;
 
-  const sourceAttendances = await prisma.attendance.findMany({
-    where: { studentId: source.id },
-    select: { date: true, subjectId: true, status: true },
-  });
+  const [sourceAttendances, sourceResults] = await Promise.all([
+    prisma.attendance.findMany({
+      where: { studentId: source.id },
+      select: { date: true, subjectId: true, status: true },
+    }),
+    prisma.examResult.findMany({
+      where: { studentId: source.id },
+      select: { examId: true, score: true, notes: true },
+    }),
+  ]);
 
-  await prisma.$transaction(async (tx) => {
-    for (const a of sourceAttendances) {
-      // upsert: if dest already has this lecture, keep dest's status (don't
-      // overwrite — admin's existing record is authoritative). Otherwise copy.
-      await tx.attendance.upsert({
-        where: {
-          date_studentId_subjectId: {
-            date: a.date,
-            studentId: dest.id,
-            subjectId: a.subjectId,
-          },
-        },
-        update: {},
-        create: {
-          date: a.date,
-          studentId: dest.id,
-          subjectId: a.subjectId,
-          status: a.status,
-        },
-      });
-    }
-    // Drop source's attendances + the source record itself.
-    await tx.attendance.deleteMany({ where: { studentId: source.id } });
-    await tx.student.delete({ where: { id: source.id } });
-  });
+  // Copy attendance AND exam results onto the destination, skipping any rows
+  // that would collide with what the destination already has (its existing
+  // record is authoritative). `createMany` + skipDuplicates relies on the
+  // unique constraints (attendance: date+student+subject, result: exam+student)
+  // and is a single bulk statement — far faster than a per-row upsert loop.
+  // Deleting the source student then cascades away its own attendance/results;
+  // we also clean up any Telegram subscription / account link tied to it.
+  await prisma.$transaction([
+    prisma.attendance.createMany({
+      data: sourceAttendances.map((a) => ({
+        date: a.date,
+        studentId: dest.id,
+        subjectId: a.subjectId,
+        status: a.status,
+      })),
+      skipDuplicates: true,
+    }),
+    prisma.examResult.createMany({
+      data: sourceResults.map((r) => ({
+        examId: r.examId,
+        studentId: dest.id,
+        score: r.score,
+        notes: r.notes,
+      })),
+      skipDuplicates: true,
+    }),
+    prisma.telegramSubscription.deleteMany({ where: { userType: "STUDENT", refId: source.id } }),
+    prisma.linkedAccount.deleteMany({ where: { userType: "STUDENT", refId: source.id } }),
+    prisma.student.delete({ where: { id: source.id } }),
+  ]);
 
   await logActivity(
     "دمج سجلين طلاب",
-    `تم دمج سجل (${source.name}) داخل سجل (${dest.name}) ونقل ${sourceAttendances.length} سجل غياب`
+    `تم دمج سجل (${source.name}) داخل سجل (${dest.name}) ونقل ${sourceAttendances.length} سجل غياب و${sourceResults.length} نتيجة اختبار`
   );
   revalidatePath("/students");
   redirect(`/students?edit=${dest.id}`);
