@@ -6,11 +6,13 @@ import { prisma } from "@/lib/prisma";
 import LogoutButton from "./LogoutButton";
 import AppShell from "@/components/AppShell";
 import MobileBottomNav from "@/components/MobileBottomNav";
+import AccountSwitcher from "@/components/AccountSwitcher";
+import { sessionAccountRef, getLinkedAccounts } from "@/lib/accounts";
 import { Toaster } from "sonner";
 import { 
   LayoutDashboard, CheckSquare, QrCode, Calendar, BarChart3, 
-  CalendarDays, BookOpen, GraduationCap, Presentation, Users, 
-  Activity, Send, Settings, ClipboardList 
+  CalendarDays, BookOpen, GraduationCap, Presentation, Users,
+  Activity, Send, Settings, ClipboardList, Link2
 } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -31,12 +33,19 @@ export default async function RootLayout({
 }>) {
   const session = await getSession();
 
+  // Other accounts belonging to the same person (admin-linked) — for the
+  // quick-switch control in the sidebar.
+  const linkedAccounts = session ? await getLinkedAccounts(sessionAccountRef(session)) : [];
+  const switcher = <AccountSwitcher accounts={linkedAccounts} />;
+
   let sidebarContent: React.ReactNode = null;
 
   if (session?.type === "STAFF") {
     sidebarContent = (
       <>
         <h2 className="sidebar-brand">المعهد العلمي</h2>
+
+        {switcher}
 
         <nav className="sidebar-nav">
           <Link href="/" className="sidebar-link"><LayoutDashboard size={18} /> الرئيسية</Link>
@@ -57,6 +66,7 @@ export default async function RootLayout({
             <>
               <hr className="sidebar-sep" />
               <Link href="/users" className="sidebar-link"><Users size={18} /> إدارة المستخدمين</Link>
+              <Link href="/linked-accounts" className="sidebar-link"><Link2 size={18} /> الحسابات المرتبطة</Link>
               <Link href="/activity" className="sidebar-link"><Activity size={18} /> سجل النشاطات</Link>
               <Link href="/admin/telegram" className="sidebar-link"><Send size={18} /> إعداد Telegram</Link>
             </>
@@ -80,6 +90,7 @@ export default async function RootLayout({
         <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginBottom: "1rem" }}>
           {lecturer?.name || session.username}
         </p>
+        {switcher}
         <nav className="sidebar-nav">
           <Link href="/me-lecturer" className="sidebar-link"><LayoutDashboard size={18} /> لوحة بياناتي</Link>
           <Link href="/me-lecturer/schedule" className="sidebar-link"><Calendar size={18} /> جدول المحاضرات</Link>
@@ -101,6 +112,8 @@ export default async function RootLayout({
         <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginBottom: "1rem" }}>
           {student?.name || session.username}
         </p>
+
+        {switcher}
 
         <nav className="sidebar-nav">
           <Link href="/me" className="sidebar-link"><LayoutDashboard size={18} /> لوحة بياناتي</Link>

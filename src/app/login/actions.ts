@@ -2,6 +2,7 @@
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { loginSession, loginStudentSession, loginLecturerSession } from "@/lib/auth";
+import { isTelegramLinked } from "@/lib/accounts";
 import { redirect } from "next/navigation";
 
 export async function loginAction(formData: FormData) {
@@ -28,7 +29,8 @@ export async function loginAction(formData: FormData) {
       return { error: "هذا الحساب موقوف. تواصل مع إدارة المعهد." };
     }
 
-    await loginStudentSession({ id: student.id, username: student.username });
+    const linked = await isTelegramLinked({ userType: "STUDENT", refId: student.id });
+    await loginStudentSession({ id: student.id, username: student.username }, linked);
     redirect(next && next.startsWith("/") ? next : "/me");
   }
 
@@ -49,7 +51,8 @@ export async function loginAction(formData: FormData) {
       return { error: "حسابك في انتظار موافقة الإدارة." };
     }
 
-    await loginLecturerSession({ id: lecturer.id, username: lecturer.username });
+    const linked = await isTelegramLinked({ userType: "LECTURER", refId: lecturer.id });
+    await loginLecturerSession({ id: lecturer.id, username: lecturer.username }, linked);
     redirect(next && next.startsWith("/") ? next : "/me-lecturer");
   }
 
@@ -80,7 +83,8 @@ export async function loginAction(formData: FormData) {
     return { error: "بيانات الدخول غير صحيحة" };
   }
 
-  await loginSession(user);
+  const linked = await isTelegramLinked({ userType: "STAFF", refId: user.id });
+  await loginSession(user, linked);
 
   redirect(next && next.startsWith("/") ? next : "/");
 }

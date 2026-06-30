@@ -6,23 +6,28 @@ import { NextRequest, NextResponse } from "next/server";
 const secretKey = process.env.JWT_SECRET || "default_super_secret_dev_key_mahad";
 const key = new TextEncoder().encode(secretKey);
 
+// `tg` = whether this account has linked its Telegram. Stored in the session
+// token so the edge proxy can gate access without hitting the database.
 export type StaffSession = {
   type: "STAFF";
   userId: string;
   username: string;
   role: "ADMIN" | "STAFF";
+  tg?: boolean;
 };
 
 export type StudentSession = {
   type: "STUDENT";
   studentId: string;
   username: string;
+  tg?: boolean;
 };
 
 export type LecturerSession = {
   type: "LECTURER";
   lecturerId: string;
   username: string;
+  tg?: boolean;
 };
 
 export type Session = StaffSession | StudentSession | LecturerSession;
@@ -48,65 +53,71 @@ export async function decrypt(input: string): Promise<(Session & JoseClaims) | n
   }
 }
 
-// Sign in a staff user (admin or staff role)
-export async function loginSession(user: { id: string; username: string; role: string }) {
-  const sessionData: StaffSession = {
-    type: "STAFF",
-    userId: user.id,
-    username: user.username,
-    role: (user.role === "ADMIN" ? "ADMIN" : "STAFF"),
-  };
+const SESSION_COOKIE_MAX_AGE = 60 * 60 * 24; // 24 hours
 
-  const token = await encrypt(sessionData as unknown as Record<string, unknown>);
+/** Write a session object into the auth cookie. */
+async function writeSessionCookie(session: Session) {
+  const token = await encrypt(session as unknown as Record<string, unknown>);
   const cookieStore = await cookies();
-
   cookieStore.set("mahad_session", token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
-    maxAge: 60 * 60 * 24 // 24 hours
+    maxAge: SESSION_COOKIE_MAX_AGE,
+  });
+}
+
+// Sign in a staff user (admin or staff role)
+export async function loginSession(
+  user: { id: string; username: string; role: string },
+  telegramLinked = false,
+) {
+  await writeSessionCookie({
+    type: "STAFF",
+    userId: user.id,
+    username: user.username,
+    role: user.role === "ADMIN" ? "ADMIN" : "STAFF",
+    tg: telegramLinked,
   });
 }
 
 // Sign in a student user
-export async function loginStudentSession(student: { id: string; username: string }) {
-  const sessionData: StudentSession = {
+export async function loginStudentSession(
+  student: { id: string; username: string },
+  telegramLinked = false,
+) {
+  await writeSessionCookie({
     type: "STUDENT",
     studentId: student.id,
     username: student.username,
-  };
-
-  const token = await encrypt(sessionData as unknown as Record<string, unknown>);
-  const cookieStore = await cookies();
-
-  cookieStore.set("mahad_session", token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 24
+    tg: telegramLinked,
   });
 }
 
 // Sign in a lecturer
-export async function loginLecturerSession(lecturer: { id: string; username: string }) {
-  const sessionData: LecturerSession = {
+export async function loginLecturerSession(
+  lecturer: { id: string; username: string },
+  telegramLinked = false,
+) {
+  await writeSessionCookie({
     type: "LECTURER",
     lecturerId: lecturer.id,
     username: lecturer.username,
-  };
-
-  const token = await encrypt(sessionData as unknown as Record<string, unknown>);
-  const cookieStore = await cookies();
-
-  cookieStore.set("mahad_session", token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 24
+    tg: telegramLinked,
   });
+}
+
+/**
+ * Re-issue the current session cookie after the user links their Telegram, so
+ * the proxy stops gating them. No-op if there's no active session.
+ */
+export async function markSessionTelegramLinked() {
+  const current = await getSession();
+  if (!current) return;
+  const { iat: _iat, exp: _exp, ...rest } = current;
+  void _iat; void _exp;
+  await writeSessionCookie({ ...(rest as Session), tg: true });
 }
 
 export async function logoutSession() {

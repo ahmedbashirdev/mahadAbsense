@@ -208,6 +208,25 @@ model TelegramSubscription {
   @@index([chatId])
 }
 
+// Groups multiple accounts (across Student / Lecturer / User tables) that
+// belong to the SAME human. An admin links them manually. Accounts sharing a
+// personId can quick-switch between each other on the site and share a single
+// Telegram chat (notifications for all of them arrive in one place).
+model LinkedAccount {
+  id        String   @id @default(cuid())
+  // Accounts sharing this value are the same person.
+  personId  String
+  // "STUDENT" | "LECTURER" | "STAFF"
+  userType  String
+  // student.id / lecturer.id / user.id
+  refId     String
+  createdAt DateTime @default(now())
+
+  // Each underlying account belongs to at most one person group.
+  @@unique([userType, refId])
+  @@index([personId])
+}
+
 // Short-lived link codes used by the deep-link signup flow:
 //   /me -> click "اربط Telegram"  -> server creates a code and returns
 //   t.me/<bot>?start=<code>      -> Telegram opens, user hits Start

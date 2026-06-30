@@ -8,6 +8,7 @@ import {
 } from "@/lib/telegram";
 import { notifyAdminsOfLecturerResponse } from "@/lib/telegramBroadcast";
 import { buildLecturerUpcomingView } from "@/lib/lectureDays";
+import { ensurePersonTelegramShared } from "@/lib/accounts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -95,6 +96,17 @@ async function handleStartCommand(message: TelegramMessage, code: string) {
     console.error("Failed to bind Telegram chat:", e);
     await sendTelegramMessage(chatId, "❌ حصل خطأ مؤقت. حاول مرة تانية.");
     return;
+  }
+
+  // If this account is linked to other accounts of the same person, share this
+  // Telegram chat with them too (best-effort).
+  try {
+    await ensurePersonTelegramShared({
+      userType: link.userType as "STUDENT" | "LECTURER" | "STAFF",
+      refId: link.refId,
+    });
+  } catch (e) {
+    console.error("Failed to propagate Telegram to linked accounts:", e);
   }
 
   await sendTelegramMessage(

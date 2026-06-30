@@ -7,6 +7,11 @@ const publicRoutes = ["/login", "/signup", "/signup-lecturer", "/logout-suspende
 // Public APIs might exist, but usually they handle auth internally or are webhooks
 const publicApiRoutes = ["/api/telegram/webhook", "/api/cron/"];
 
+// The "must link Telegram" gate page itself, plus logout — reachable by a
+// logged-in user even before they've linked their Telegram (otherwise the gate
+// would deadlock).
+const telegramGateExempt = ["/link-telegram", "/logout", "/logout-suspended"];
+
 export async function proxy(req: NextRequest) {
   const path = req.nextUrl.pathname;
 
@@ -38,8 +43,25 @@ export async function proxy(req: NextRequest) {
     }
   }
 
+  // 4.5 Telegram gate — a logged-in account that hasn't linked Telegram can
+  // only reach the gate page (and logout) until it links. Covers students,
+  // lecturers and staff/admins uniformly.
+  if (session && !isPublicRoute) {
+    const isGateExempt = telegramGateExempt.some((p) => path === p || path.startsWith(p + "/"));
+    const isApi = path.startsWith("/api");
+    if (!session.tg && !isGateExempt && !isApi) {
+      return NextResponse.redirect(new URL("/link-telegram", req.url));
+    }
+    // Already linked but still on the gate page → send them to their dashboard.
+    if (session.tg && path === "/link-telegram") {
+      const home =
+        session.type === "STUDENT" ? "/me" : session.type === "LECTURER" ? "/me-lecturer" : "/";
+      return NextResponse.redirect(new URL(home, req.url));
+    }
+  }
+
   // 5. Enforce role-based access control for protected routes
-  if (!isPublicRoute && session) {
+  if (!isPublicRoute && session && path !== "/link-telegram") {
     const isStudentRoute = path.startsWith("/me") && !path.startsWith("/me-lecturer");
     const isLecturerRoute = path.startsWith("/me-lecturer");
     
