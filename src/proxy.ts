@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { decrypt, Session } from "@/lib/auth";
 
 // Define public routes that don't require authentication
-const publicRoutes = ["/login", "/signup", "/signup-lecturer", "/logout-suspended"];
+const publicRoutes = ["/login", "/signup", "/signup-lecturer", "/logout-suspended", "/forgot-password"];
 
 // Public APIs might exist, but usually they handle auth internally or are webhooks
 const publicApiRoutes = ["/api/telegram/webhook", "/api/cron/"];

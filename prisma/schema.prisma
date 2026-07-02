@@ -241,6 +241,20 @@ model TelegramLinkCode {
   createdAt DateTime @default(now())
 }
 
+// Short-lived 6-digit codes for self-service password reset. The code is sent
+// to the account's linked Telegram chat; the user enters it plus a new password.
+model PasswordResetCode {
+  id        String    @id @default(cuid())
+  userType  String    // "STUDENT" | "LECTURER" | "STAFF"
+  refId     String
+  code      String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userType, refId])
+}
+
 model Attendance {
   id        String   @id @default(cuid())
   date      DateTime // Date without time component

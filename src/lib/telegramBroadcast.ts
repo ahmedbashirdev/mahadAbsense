@@ -2,6 +2,7 @@
 import { prisma } from "@/lib/prisma";
 import { getStaffSession } from "@/lib/auth";
 import { broadcastTelegramMessage, getTelegramDeepLink, escapeHtml } from "@/lib/telegram";
+import { formatTime12 } from "@/lib/time";
 import { logActivity } from "@/lib/logger";
 import { notifyLecturersForUpcomingDays, notifyLecturersForDays, cairoTodayUtcMidnight } from "@/lib/lectureDays";
 
@@ -101,7 +102,7 @@ export async function notifyStudentsOfSchedule(lectureDayId: string) {
       const lecName = l.lecturer ? l.lecturer.name : (l.lecturerName || "");
       const lec = lecName ? ` • ${escapeHtml(lecName)}` : "";
       lines.push(`${l.order}. <b>${escapeHtml(l.subject.name)}</b>${lec}`);
-      lines.push(`   🕒 <code>${l.startTime}</code> – <code>${l.endTime}</code>`);
+      lines.push(`   🕒 <code>${formatTime12(l.startTime)}</code> – <code>${formatTime12(l.endTime)}</code>`);
     }
     const text = lines.filter(Boolean).join("\n");
 
@@ -191,7 +192,7 @@ export async function sendHourlyStudentReminders() {
       `⏰ <b>تذكير: محاضرة بعد ساعة</b>`,
       ``,
       `📚 ${escapeHtml(l.subject.name)} — ${escapeHtml(l.subject.academicYear.name)}`,
-      `🕒 <code>${l.startTime}</code> – <code>${l.endTime}</code>`,
+      `🕒 <code>${formatTime12(l.startTime)}</code> – <code>${formatTime12(l.endTime)}</code>`,
       (l.lecturer || l.lecturerName) ? `👨‍🏫 ${escapeHtml(l.lecturer ? l.lecturer.name : l.lecturerName!)}` : "",
     ].filter(Boolean).join("\n");
 

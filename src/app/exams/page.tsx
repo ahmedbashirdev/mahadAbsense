@@ -10,6 +10,7 @@ import ClientForm from "@/components/ClientForm";
 import SubmitButton from "@/components/SubmitButton";
 import { Plus, Edit, ClipboardList } from "lucide-react";
 import { examTypeLabel, parseExamType } from "@/lib/exams";
+import { formatTime12 } from "@/lib/time";
 import ExamFormFields from "./ExamFormFields";
 
 export const dynamic = "force-dynamic";
@@ -181,8 +182,8 @@ export default async function ExamsPage({ searchParams }: { searchParams: Promis
                     <td data-label="التاريخ">
                       {new Date(ex.date).toLocaleDateString("ar-EG", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
                     </td>
-                    <td data-label="الوقت" dir="ltr">
-                      {ex.startTime ? `${ex.startTime}${ex.endTime ? ` – ${ex.endTime}` : ""}` : "—"}
+                    <td data-label="الوقت">
+                      {ex.startTime ? `${formatTime12(ex.startTime)}${ex.endTime ? ` – ${formatTime12(ex.endTime)}` : ""}` : "—"}
                     </td>
                     <td data-label="الدرجة">{ex.maxScore} / {ex.passScore}</td>
                     <td data-label="النتائج">{ex._count.results}</td>

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getLecturerSession } from "@/lib/auth";
+import { formatTime12 } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
@@ -94,7 +95,7 @@ export default async function LecturerSyllabusProgressPage({ params }: { params:
             </div>
             <div>
               <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>الوقت</div>
-              <div style={{ fontWeight: 600 }} dir="ltr">{lecture.startTime} – {lecture.endTime}</div>
+              <div style={{ fontWeight: 600 }}>{formatTime12(lecture.startTime)} – {formatTime12(lecture.endTime)}</div>
             </div>
           </div>
 

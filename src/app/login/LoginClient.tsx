@@ -109,6 +109,10 @@ export default function LoginClient({ next }: { next: string }) {
           </button>
         </form>
 
+        <p style={{ marginTop: '1rem', fontSize: '0.85rem', textAlign: 'center' }}>
+          <Link href="/forgot-password" style={{ color: 'var(--accent-primary)', fontWeight: 600 }}>نسيت كلمة المرور؟</Link>
+        </p>
+
         {accountType === "STAFF" && (
           <p style={{ marginTop: '1.5rem', fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
             إذا كان النظام جديداً بالكامل، يمكنك الدخول بـ (admin) وكلمة مرور (admin).

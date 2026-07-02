@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getLecturerSession } from "@/lib/auth";
+import { formatTime12 } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
@@ -85,8 +86,8 @@ export default async function LecturerSchedulePage() {
             {g.items.map((l) => (
               <tr key={l.id}>
                 <td data-label="الترتيب" style={{ fontWeight: 700 }}>{l.order}</td>
-                <td data-label="الوقت" dir="ltr">
-                  {l.startTime} – {l.endTime}
+                <td data-label="الوقت">
+                  {formatTime12(l.startTime)} – {formatTime12(l.endTime)}
                 </td>
                 <td data-label="المادة" style={{ fontWeight: 600 }}>{l.subject.name}</td>
                 <td data-label="السنة">

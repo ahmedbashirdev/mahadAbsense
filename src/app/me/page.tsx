@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getStudentSession } from "@/lib/auth";
 import { getAbsenceWarningThreshold } from "@/lib/settings";
 import { examTypeLabel } from "@/lib/exams";
+import { formatTime12 } from "@/lib/time";
 import ConnectTelegram from "@/components/ConnectTelegram";
 import { 
   QrCode, AlertTriangle, CalendarDays, BookOpen, Book, 
@@ -241,7 +242,7 @@ export default async function StudentHomePage() {
                     <tbody>
                       {d.lectures.map((l) => (
                         <tr key={l.id}>
-                          <td data-label="الوقت" dir="ltr" style={{ fontWeight: 600 }}>{l.startTime} – {l.endTime}</td>
+                          <td data-label="الوقت" style={{ fontWeight: 600 }}>{formatTime12(l.startTime)} – {formatTime12(l.endTime)}</td>
                           <td data-label="المادة">{l.subject.name}</td>
                           <td data-label="المحاضر">{l.lecturer ? l.lecturer.name : l.lecturerName ? l.lecturerName : <span style={{ color: "var(--text-tertiary)" }}>—</span>}</td>
                         </tr>
@@ -287,8 +288,8 @@ export default async function StudentHomePage() {
                       <td data-label="التاريخ">
                         {new Date(e.date).toLocaleDateString("ar-EG", { weekday: "long", day: "numeric", month: "long" })}
                       </td>
-                      <td data-label="الوقت" dir="ltr">
-                        {e.startTime ? `${e.startTime}${e.endTime ? ` – ${e.endTime}` : ""}` : "—"}
+                      <td data-label="الوقت">
+                        {e.startTime ? `${formatTime12(e.startTime)}${e.endTime ? ` – ${formatTime12(e.endTime)}` : ""}` : "—"}
                       </td>
                       <td data-label="المكان">{e.location || <span style={{ color: "var(--text-tertiary)" }}>—</span>}</td>
                     </tr>

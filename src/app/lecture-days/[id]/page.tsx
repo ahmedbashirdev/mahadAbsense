@@ -4,6 +4,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getStaffSession } from "@/lib/auth";
 import { logActivity } from "@/lib/logger";
+import { formatTime12, timesOverlap } from "@/lib/time";
 import { SubmitWithConfirm } from "@/components/SubmitWithConfirm";
 import Modal from "@/components/Modal";
 import ClientForm from "@/components/ClientForm";
@@ -11,6 +12,45 @@ import SubmitButton from "@/components/SubmitButton";
 import BroadcastButtons from "./BroadcastButtons";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Detect a scheduling clash inside one lecture day:
+ *  - the same lecturer teaching two overlapping lectures, or
+ *  - the same batch (academic year) having two overlapping lectures.
+ * Returns an Arabic error message, or null when there's no clash.
+ */
+async function findScheduleConflict(opts: {
+  lectureDayId: string;
+  subjectYearId: string | null;
+  lecturerId: string | null;
+  startTime: string;
+  endTime: string;
+  excludeLectureId?: string;
+}): Promise<string | null> {
+  const others = await prisma.lecture.findMany({
+    where: {
+      lectureDayId: opts.lectureDayId,
+      ...(opts.excludeLectureId ? { id: { not: opts.excludeLectureId } } : {}),
+    },
+    select: {
+      startTime: true,
+      endTime: true,
+      lecturerId: true,
+      subject: { select: { yearId: true } },
+    },
+  });
+
+  for (const o of others) {
+    if (!timesOverlap(opts.startTime, opts.endTime, o.startTime, o.endTime)) continue;
+    if (opts.lecturerId && o.lecturerId && o.lecturerId === opts.lecturerId) {
+      return "المحاضر عنده محاضرة تانية في نفس الوقت في نفس اليوم — غيّر الوقت أو المحاضر.";
+    }
+    if (opts.subjectYearId && o.subject.yearId === opts.subjectYearId) {
+      return "الدفعة (السنة الدراسية) عندها محاضرة تانية في نفس الوقت — الدفعة لا تحضر محاضرتين في نفس التوقيت.";
+    }
+  }
+  return null;
+}
 
 async function addLecture(formData: FormData) {
   "use server"
@@ -26,6 +66,18 @@ async function addLecture(formData: FormData) {
   const startTime = ((formData.get("startTime") as string) || "").trim();
   const endTime = ((formData.get("endTime") as string) || "").trim();
   if (!lectureDayId || !subjectId || !startTime || !endTime) return;
+
+  const subj = await prisma.subject.findUnique({ where: { id: subjectId }, select: { yearId: true } });
+  const conflict = await findScheduleConflict({
+    lectureDayId,
+    subjectYearId: subj?.yearId ?? null,
+    lecturerId,
+    startTime,
+    endTime,
+  });
+  if (conflict) {
+    redirect(`/lecture-days/${lectureDayId}?error=${encodeURIComponent(conflict)}`);
+  }
 
   const last = await prisma.lecture.findFirst({
     where: { lectureDayId },
@@ -53,23 +105,60 @@ async function addSuggestedLectures(formData: FormData) {
   const startTimes = formData.getAll("startTime") as string[];
   const endTimes = formData.getAll("endTime") as string[];
 
-  // Find current max order
+  // Collect the valid rows first.
+  const rows: { subjectId: string; lecturerId: string | null; startTime: string; endTime: string }[] = [];
+  for (let i = 0; i < subjectIds.length; i++) {
+    const subjectId = subjectIds[i];
+    const startTime = (startTimes[i] || "").trim();
+    const endTime = (endTimes[i] || "").trim();
+    if (!subjectId || !startTime || !endTime) continue;
+    rows.push({ subjectId, lecturerId: lecturerIds[i] || null, startTime, endTime });
+  }
+
+  // Map each subject to its academic year for batch-conflict detection.
+  const subjects = await prisma.subject.findMany({
+    where: { id: { in: rows.map((r) => r.subjectId) } },
+    select: { id: true, yearId: true },
+  });
+  const yearBySubject = new Map(subjects.map((s) => [s.id, s.yearId]));
+
+  // Validate the WHOLE batch before inserting anything (against existing
+  // lectures AND against the other rows being added now).
+  const accepted: { yearId: string | null; lecturerId: string | null; startTime: string; endTime: string }[] = [];
+  for (const r of rows) {
+    const yearId = yearBySubject.get(r.subjectId) ?? null;
+    const dbConflict = await findScheduleConflict({
+      lectureDayId,
+      subjectYearId: yearId,
+      lecturerId: r.lecturerId,
+      startTime: r.startTime,
+      endTime: r.endTime,
+    });
+    if (dbConflict) {
+      redirect(`/lecture-days/${lectureDayId}?error=${encodeURIComponent(dbConflict)}`);
+    }
+    for (const a of accepted) {
+      if (!timesOverlap(r.startTime, r.endTime, a.startTime, a.endTime)) continue;
+      if (r.lecturerId && a.lecturerId && r.lecturerId === a.lecturerId) {
+        redirect(`/lecture-days/${lectureDayId}?error=${encodeURIComponent("نفس المحاضر متكرر في نفس الوقت ضمن المواد اللي بتضيفها.")}`);
+      }
+      if (yearId && a.yearId === yearId) {
+        redirect(`/lecture-days/${lectureDayId}?error=${encodeURIComponent("نفس الدفعة في نفس الوقت ضمن المواد اللي بتضيفها.")}`);
+      }
+    }
+    accepted.push({ yearId, lecturerId: r.lecturerId, startTime: r.startTime, endTime: r.endTime });
+  }
+
+  // Find current max order, then insert all rows.
   const last = await prisma.lecture.findFirst({
     where: { lectureDayId },
     orderBy: { order: "desc" },
     select: { order: true },
   });
   let nextOrder = (last?.order ?? 0) + 1;
-
-  for (let i = 0; i < subjectIds.length; i++) {
-    const subjectId = subjectIds[i];
-    const lecturerId = lecturerIds[i] || null;
-    const startTime = (startTimes[i] || "").trim();
-    const endTime = (endTimes[i] || "").trim();
-    if (!subjectId || !startTime || !endTime) continue;
-
+  for (const r of rows) {
     await prisma.lecture.create({
-      data: { lectureDayId, subjectId, lecturerId, startTime, endTime, order: nextOrder },
+      data: { lectureDayId, subjectId: r.subjectId, lecturerId: r.lecturerId, startTime: r.startTime, endTime: r.endTime, order: nextOrder },
     });
     nextOrder++;
   }
@@ -107,6 +196,19 @@ async function editLecture(formData: FormData) {
 
   const lec = await prisma.lecture.findUnique({ where: { id }, select: { lectureDayId: true } });
   if (!lec) return;
+
+  const subj = await prisma.subject.findUnique({ where: { id: subjectId }, select: { yearId: true } });
+  const conflict = await findScheduleConflict({
+    lectureDayId: lec.lectureDayId,
+    subjectYearId: subj?.yearId ?? null,
+    lecturerId,
+    startTime,
+    endTime,
+    excludeLectureId: id,
+  });
+  if (conflict) {
+    redirect(`/lecture-days/${lec.lectureDayId}?error=${encodeURIComponent(conflict)}`);
+  }
 
   await prisma.lecture.update({
     where: { id },
@@ -182,13 +284,13 @@ export default async function LectureDayPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ editLecture?: string }>;
+  searchParams: Promise<{ editLecture?: string; error?: string }>;
 }) {
   const session = await getStaffSession();
   if (!session) redirect("/login");
 
   const { id } = await params;
-  const { editLecture: editLectureId } = await searchParams;
+  const { editLecture: editLectureId, error: errorMsg } = await searchParams;
 
   const day = await prisma.lectureDay.findUnique({
     where: { id },
@@ -287,6 +389,22 @@ export default async function LectureDayPage({
 
   return (
     <>
+      {errorMsg && (
+        <div
+          className="animate-fade-in"
+          style={{
+            marginBottom: "1rem",
+            padding: "0.85rem 1rem",
+            borderRadius: "var(--border-radius-sm)",
+            backgroundColor: "rgba(239, 68, 68, 0.08)",
+            border: "1px solid var(--danger)",
+            color: "var(--danger)",
+            fontWeight: 600,
+          }}
+        >
+          ⚠️ {errorMsg}
+        </div>
+      )}
       <header className="page-header animate-fade-in">
         <div>
           <h1 className="page-title">يوم {dateStr}</h1>
@@ -501,8 +619,8 @@ export default async function LectureDayPage({
                 {day.lectures.map((l, idx) => (
                   <tr key={l.id}>
                     <td data-label="الترتيب" style={{ fontWeight: 700 }}>{l.order}</td>
-                    <td data-label="الوقت" dir="ltr">
-                      {l.startTime} – {l.endTime}
+                    <td data-label="الوقت">
+                      {formatTime12(l.startTime)} – {formatTime12(l.endTime)}
                     </td>
                     <td data-label="المادة">
                       <div style={{ fontWeight: 600 }}>{l.subject.name}</div>
