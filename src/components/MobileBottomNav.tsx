@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, QrCode, Settings } from "lucide-react";
+import { LayoutDashboard, QrCode, CheckSquare, ClipboardList } from "lucide-react";
 
 export default function MobileBottomNav() {
   const pathname = usePathname();
@@ -10,7 +10,8 @@ export default function MobileBottomNav() {
   const navItems = [
     { href: "/me", label: "بياناتي", icon: LayoutDashboard },
     { href: "/me/checkin", label: "حضور", icon: QrCode },
-    { href: "/me/settings", label: "إعدادات", icon: Settings },
+    { href: "/me/attendance", label: "الغياب", icon: CheckSquare },
+    { href: "/me/exams", label: "اختبارات", icon: ClipboardList },
   ];
 
   return (

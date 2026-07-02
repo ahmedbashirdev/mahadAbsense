@@ -118,6 +118,9 @@ export default async function RootLayout({
         <nav className="sidebar-nav">
           <Link href="/me" className="sidebar-link"><LayoutDashboard size={18} /> لوحة بياناتي</Link>
           <Link href="/me/checkin" className="sidebar-link"><QrCode size={18} /> تسجيل الحضور</Link>
+          <Link href="/me/attendance" className="sidebar-link"><CheckSquare size={18} /> الحضور والغياب</Link>
+          <Link href="/me/exams" className="sidebar-link"><ClipboardList size={18} /> الاختبارات</Link>
+          <Link href="/me/syllabus" className="sidebar-link"><BookOpen size={18} /> متابعة المنهج</Link>
           <hr className="sidebar-sep" />
           <Link href="/me/settings" className="sidebar-link"><Settings size={18} /> تغيير كلمة المرور</Link>
         </nav>

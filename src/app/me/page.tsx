@@ -3,13 +3,11 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getStudentSession } from "@/lib/auth";
 import { getAbsenceWarningThreshold } from "@/lib/settings";
-import { examTypeLabel } from "@/lib/exams";
 import { formatTime12 } from "@/lib/time";
 import ConnectTelegram from "@/components/ConnectTelegram";
-import { 
-  QrCode, AlertTriangle, CalendarDays, BookOpen, Book, 
-  MessageSquareText, BarChart3, History, CheckCircle2, 
-  XCircle, Clock, GraduationCap 
+import {
+  QrCode, AlertTriangle, CalendarDays, CheckCircle2, XCircle, Clock,
+  GraduationCap, ClipboardCheck, ClipboardList, BookOpen
 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -74,52 +72,8 @@ export default async function StudentHomePage() {
     orderBy: { date: "asc" },
   });
 
-  // Syllabus progress per subject
-  const subjectsProgress = await prisma.subject.findMany({
-    where: { yearId: student.yearId },
-    include: {
-      lectures: {
-        where: {
-          OR: [
-            { syllabusProgress: { not: null } },
-            { reachedPage: { not: null } }
-          ],
-          lectureDay: { date: { lt: today } }
-        },
-        orderBy: { lectureDay: { date: "desc" } },
-        take: 1,
-        include: { lecturer: { select: { name: true } }, lectureDay: true }
-      }
-    }
-  });
-
-  // Exams for this student's year + this student's results.
-  const yearExams = await prisma.exam.findMany({
-    where: { subject: { yearId: student.yearId } },
-    include: { subject: { select: { name: true, termType: true } } },
-    orderBy: { date: "asc" },
-  });
-  const myExamResults = await prisma.examResult.findMany({
-    where: { studentId: student.id },
-    include: { exam: { include: { subject: { select: { name: true, termType: true } } } } },
-  });
-  const examResultsView = myExamResults
-    .map((r) => {
-      const pct = r.exam.maxScore > 0 ? Math.round((r.score / r.exam.maxScore) * 100) : 0;
-      return {
-        id: r.id,
-        subjectName: r.exam.subject.name,
-        typeLabel: examTypeLabel(r.exam.subject.termType, r.exam.term, r.exam.kind),
-        date: r.exam.date,
-        score: r.score,
-        maxScore: r.exam.maxScore,
-        pct,
-        passed: r.score >= r.exam.passScore,
-      };
-    })
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-  // Per-subject summary
+  // Per-subject summary (used for the at-risk warning below; the full table
+  // lives on /me/attendance).
   const summaryMap = new Map<string, SubjectSummary>();
   for (const r of records) {
     let s = summaryMap.get(r.subjectId);
@@ -256,160 +210,20 @@ export default async function StudentHomePage() {
         </section>
       )}
 
-      {/* Exam schedule */}
-      {yearExams.length > 0 && (
-        <section className="card animate-fade-in" style={{ animationDelay: "0.12s", marginBottom: "1.5rem" }}>
-          <h3 style={{ marginBottom: "1rem", fontWeight: 700, display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <CalendarDays size={20} className="text-accent" /> جدول الاختبارات
-          </h3>
-          <div className="table-responsive-cards" style={{ overflowX: "auto" }}>
-            <table>
-              <thead>
-                <tr>
-                  <th>المادة</th>
-                  <th>نوع الاختبار</th>
-                  <th>التاريخ</th>
-                  <th>الوقت</th>
-                  <th>المكان</th>
-                </tr>
-              </thead>
-              <tbody>
-                {yearExams.map((e) => {
-                  const upcoming = new Date(e.date) >= today;
-                  return (
-                    <tr key={e.id}>
-                      <td data-label="المادة" style={{ fontWeight: 600 }}>
-                        {e.subject.name}
-                        {upcoming && (
-                          <span className="status-badge status-excused" style={{ marginInlineStart: "0.5rem", fontSize: "0.7rem" }}>قادم</span>
-                        )}
-                      </td>
-                      <td data-label="الترم">{examTypeLabel(e.subject.termType, e.term, e.kind)}</td>
-                      <td data-label="التاريخ">
-                        {new Date(e.date).toLocaleDateString("ar-EG", { weekday: "long", day: "numeric", month: "long" })}
-                      </td>
-                      <td data-label="الوقت">
-                        {e.startTime ? `${formatTime12(e.startTime)}${e.endTime ? ` – ${formatTime12(e.endTime)}` : ""}` : "—"}
-                      </td>
-                      <td data-label="المكان">{e.location || <span style={{ color: "var(--text-tertiary)" }}>—</span>}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
-
-      {/* Exam results */}
-      {examResultsView.length > 0 && (
-        <section className="card animate-fade-in" style={{ animationDelay: "0.125s", marginBottom: "1.5rem" }}>
-          <h3 style={{ marginBottom: "1rem", fontWeight: 700, display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <BarChart3 size={20} className="text-accent" /> نتائج الاختبارات
-          </h3>
-          <div className="table-responsive-cards" style={{ overflowX: "auto" }}>
-            <table>
-              <thead>
-                <tr>
-                  <th>المادة</th>
-                  <th>نوع الاختبار</th>
-                  <th style={{ textAlign: "center" }}>الدرجة</th>
-                  <th style={{ textAlign: "center" }}>النسبة</th>
-                  <th style={{ textAlign: "center" }}>الحالة</th>
-                </tr>
-              </thead>
-              <tbody>
-                {examResultsView.map((r) => (
-                  <tr key={r.id}>
-                    <td data-label="المادة" style={{ fontWeight: 600 }}>{r.subjectName}</td>
-                    <td data-label="الترم">{r.typeLabel}</td>
-                    <td data-label="الدرجة" style={{ textAlign: "center", fontWeight: 700 }} dir="ltr">{r.score} / {r.maxScore}</td>
-                    <td data-label="النسبة" style={{ textAlign: "center" }}>{r.pct}%</td>
-                    <td data-label="الحالة" style={{ textAlign: "center" }}>
-                      <span className="status-badge" style={{
-                        backgroundColor: r.passed ? "rgba(16,185,129,0.12)" : "rgba(239,68,68,0.12)",
-                        color: r.passed ? "var(--success)" : "var(--danger)",
-                        fontWeight: 700,
-                      }}>
-                        {r.passed ? "ناجح" : "راسب"}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
-
-      {/* Syllabus Progress */}
-      {subjectsProgress.length > 0 && (
-        <section className="card animate-fade-in" style={{ animationDelay: "0.13s", marginBottom: "1.5rem" }}>
-          <h3 style={{ marginBottom: "1rem", fontWeight: 700, display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <BookOpen size={20} className="text-accent" /> متابعة المناهج
-          </h3>
-          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            {subjectsProgress.map((sub) => {
-              const latestLec = sub.lectures[0];
-              const reached = sub.reachedPage || 0;
-              const target = sub.targetPage || 0;
-              const percent = target > 0 ? Math.min(100, Math.round((reached / target) * 100)) : 0;
-              
-              return (
-                <div key={sub.id} style={{ padding: "1rem", backgroundColor: "var(--bg-secondary)", borderRadius: "var(--border-radius-sm)", border: "1px solid var(--border-color)" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem", marginBottom: "0.5rem" }}>
-                    <div style={{ fontWeight: 700, color: "var(--accent-primary)" }}>{sub.name}</div>
-                    {sub.bookName && (
-                      <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)", backgroundColor: "var(--bg-tertiary)", padding: "0.2rem 0.6rem", borderRadius: "999px", display: "flex", alignItems: "center", gap: "0.3rem" }}>
-                        <Book size={14} /> {sub.bookName}
-                      </div>
-                    )}
-                  </div>
-                  
-                  {sub.targetPage && (
-                    <div style={{ marginTop: "1rem", marginBottom: "1rem" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.4rem", fontSize: "0.85rem" }}>
-                        <span>نسبة الإنجاز في المنهج</span>
-                        <span style={{ fontWeight: 700 }}>{percent}%</span>
-                      </div>
-                      <div style={{ width: "100%", height: "6px", backgroundColor: "var(--bg-tertiary)", borderRadius: "999px", overflow: "hidden" }}>
-                        <div 
-                          style={{ 
-                            height: "100%", 
-                            backgroundColor: percent >= 100 ? "var(--success)" : "var(--accent-primary)", 
-                            width: `${percent}%`,
-                            transition: "width 1s ease"
-                          }} 
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {latestLec && latestLec.syllabusProgress && (
-                    <div style={{ marginTop: "1rem", padding: "0.75rem", backgroundColor: "var(--bg-tertiary)", borderRadius: "var(--border-radius-sm)", borderInlineStart: "3px solid var(--accent-primary)" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.25rem", fontSize: "0.8rem", color: "var(--text-secondary)" }}>
-                        <span style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
-                          <MessageSquareText size={14} /> أحدث تعليق ({new Date(latestLec.lectureDay.date).toLocaleDateString("ar-EG", { day: "numeric", month: "long" })})
-                        </span>
-                        {latestLec.lecturer && <span>👨‍🏫 {latestLec.lecturer.name}</span>}
-                      </div>
-                      <div style={{ fontSize: "0.9rem", color: "var(--text-primary)", whiteSpace: "pre-wrap", lineHeight: "1.6" }}>
-                        {latestLec.syllabusProgress}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {!latestLec && reached === 0 && (
-                    <div style={{ fontSize: "0.85rem", color: "var(--text-tertiary)", marginTop: "0.5rem" }}>
-                      لم يتم تسجيل أي تقدم بعد.
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      )}
+      {/* Quick links to the detail pages */}
+      <section
+        style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "1rem", marginBottom: "1.5rem" }}
+      >
+        <Link href="/me/attendance" className="card animate-fade-in" style={{ textDecoration: "none", color: "inherit", display: "flex", alignItems: "center", gap: "0.6rem", fontWeight: 700 }}>
+          <ClipboardCheck size={20} className="text-accent" /> الحضور والغياب
+        </Link>
+        <Link href="/me/exams" className="card animate-fade-in" style={{ textDecoration: "none", color: "inherit", display: "flex", alignItems: "center", gap: "0.6rem", fontWeight: 700 }}>
+          <ClipboardList size={20} className="text-accent" /> الاختبارات
+        </Link>
+        <Link href="/me/syllabus" className="card animate-fade-in" style={{ textDecoration: "none", color: "inherit", display: "flex", alignItems: "center", gap: "0.6rem", fontWeight: 700 }}>
+          <BookOpen size={20} className="text-accent" /> متابعة المنهج
+        </Link>
+      </section>
 
       {/* Top stats */}
       <section
@@ -448,103 +262,6 @@ export default async function StudentHomePage() {
             {records.filter((r) => r.status === "EXCUSED").length}
           </div>
         </div>
-      </section>
-
-      {/* Per-subject summary */}
-      <section className="card animate-fade-in" style={{ animationDelay: "0.35s", marginBottom: "1.5rem" }}>
-        <h3 style={{ marginBottom: "1rem", fontWeight: 700 }}>ملخص المواد</h3>
-        {summaries.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "3rem 1rem", color: "var(--text-secondary)" }}>
-            <BarChart3 size={48} style={{ margin: "0 auto 1rem auto", opacity: 0.6 }} />
-            <p style={{ fontSize: "1.1rem", fontWeight: 500 }}>لا توجد بيانات حضور بعد</p>
-            <p style={{ fontSize: "0.9rem", marginTop: "0.5rem" }}>سيتم إضافة ملخص لغيابك ومشاركتك هنا بمجرد تسجيل أول محاضرة.</p>
-          </div>
-        ) : (
-          <div className="table-responsive-cards" style={{ overflowX: "auto" }}>
-            <table>
-              <thead>
-                <tr>
-                  <th>المادة</th>
-                  <th style={{ textAlign: "center" }}>محاضرات</th>
-                  <th style={{ textAlign: "center" }}>حضور</th>
-                  <th style={{ textAlign: "center" }}>غياب</th>
-                  <th style={{ textAlign: "center" }}>مستأذن</th>
-                  <th style={{ textAlign: "center" }}>نسبة الحضور</th>
-                </tr>
-              </thead>
-              <tbody>
-                {summaries.map((s) => (
-                  <tr key={s.subjectId}>
-                    <td data-label="المادة" style={{ fontWeight: 600 }}>{s.subjectName}</td>
-                    <td data-label="محاضرات" style={{ textAlign: "center" }}>{s.total}</td>
-                    <td data-label="حضور" style={{ textAlign: "center", color: "var(--success)", fontWeight: 700 }}>{s.present}</td>
-                    <td data-label="غياب" style={{ textAlign: "center", color: s.absent >= threshold ? "var(--danger)" : "inherit", fontWeight: 700 }}>
-                      {s.absent}
-                    </td>
-                    <td data-label="مستأذن" style={{ textAlign: "center", color: "var(--warning)", fontWeight: 700 }}>{s.excused}</td>
-                    <td data-label="النسبة" style={{ textAlign: "center", fontWeight: 700 }}>
-                      <span
-                        className="status-badge"
-                        style={{
-                          backgroundColor:
-                            s.attendancePct >= 80
-                              ? "rgba(16, 185, 129, 0.12)"
-                              : s.attendancePct >= 60
-                              ? "rgba(245, 158, 11, 0.12)"
-                              : "rgba(239, 68, 68, 0.12)",
-                          color:
-                            s.attendancePct >= 80
-                              ? "var(--success)"
-                              : s.attendancePct >= 60
-                              ? "var(--warning)"
-                              : "var(--danger)",
-                        }}
-                      >
-                        {s.attendancePct}%
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      {/* Detailed history */}
-      <section className="card animate-fade-in" style={{ animationDelay: "0.4s" }}>
-        <h3 style={{ marginBottom: "1rem", fontWeight: 700 }}>التاريخ التفصيلي</h3>
-        {records.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "3rem 1rem", color: "var(--text-secondary)" }}>
-            <History size={48} style={{ margin: "0 auto 1rem auto", opacity: 0.6 }} />
-            <p style={{ fontSize: "1.1rem", fontWeight: 500 }}>لم يتم تسجيل غيابك في أي محاضرة بعد</p>
-          </div>
-        ) : (
-          <div className="table-responsive-cards" style={{ overflowX: "auto" }}>
-            <table>
-              <thead>
-                <tr>
-                  <th>التاريخ</th>
-                  <th>المادة</th>
-                  <th>الحالة</th>
-                </tr>
-              </thead>
-              <tbody>
-                {records.map((r) => (
-                  <tr key={r.id}>
-                    <td data-label="التاريخ">{r.date.toLocaleDateString("ar-EG")}</td>
-                    <td data-label="المادة" style={{ fontWeight: 600 }}>{r.subject.name}</td>
-                    <td data-label="الحالة">
-                      <span className={`status-badge status-${r.status.toLowerCase()}`}>
-                        {r.status === "PRESENT" ? "حاضر" : r.status === "ABSENT" ? "غائب" : "مستأذن"}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </section>
     </>
   );

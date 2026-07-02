@@ -443,13 +443,8 @@ tr:hover td {
 }
 
 @media (max-width: 768px) {
-  /* Hide sidebar and topbar for students on mobile if bottom nav is present */
-  .student-layout .sidebar,
-  .student-layout .sidebar-overlay,
-  .student-layout .mobile-topbar {
-    display: none !important;
-  }
-  
+  /* Students keep the hamburger menu (full nav + account switch + logout) AND
+     the quick bottom nav. The bottom nav gets extra clearance at the bottom. */
   .student-layout .main-content {
     padding-bottom: calc(80px + env(safe-area-inset-bottom));
   }
